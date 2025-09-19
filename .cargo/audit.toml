@@ -1,0 +1,11 @@
+[advisories]
+# Ignore RUSTSEC-2023-0071 (RSA Marvin Attack) - transitive dependency from sigstore
+# This is a timing side-channel attack that is difficult to exploit in practice
+# for this verification use case. Will be resolved when sigstore updates their dependencies.
+#
+# Ignore RUSTSEC-2024-0370 (proc-macro-error unmaintained) - transitive dependency from sigstore
+# This is just an unmaintained warning, not a security vulnerability.
+ignore = [
+    "RUSTSEC-2023-0071",  # RSA Marvin Attack - timing sidechannel
+    "RUSTSEC-2024-0370",  # proc-macro-error unmaintained - transitive from sigstore
+]
