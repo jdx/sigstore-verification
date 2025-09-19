@@ -46,12 +46,23 @@ impl AttestationSource for FileSource {
         // Try to parse each line as JSON (JSONL format)
         let mut attestations = Vec::new();
 
-        for line in content.lines() {
+        // Handle both JSONL format (multiple lines) and single JSON object
+        let lines: Vec<&str> = content.lines().collect();
+        let lines = if lines.is_empty() && !content.trim().is_empty() {
+            // Single JSON object without newline
+            vec![content.trim()]
+        } else {
+            lines
+        };
+
+        for line in lines {
             if line.trim().is_empty() {
                 continue;
             }
 
+            log::trace!("Parsing line of length: {}", line.len());
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
+                log::trace!("Successfully parsed JSON with keys: {:?}", json_value.as_object().map(|o| o.keys().collect::<Vec<_>>()));
                 // Check if this is a Sigstore Bundle v0.3 format
                 if let (Some(media_type), Some(dsse_envelope)) =
                     (json_value.get("mediaType"), json_value.get("dsseEnvelope"))
@@ -186,18 +197,15 @@ impl AttestationSource for FileSource {
                     }
                 }
 
-                // Try to parse as an existing attestation format
-                if let Ok(attestation) = serde_json::from_value::<Attestation>(json_value.clone()) {
-                    attestations.push(attestation);
-                    continue;
-                }
-
                 // Check if this is a traditional Cosign bundle format
+                // This check must come before parsing as Attestation since traditional Cosign
+                // JSON can be parsed as Attestation but with bundle=None
                 if let (Some(_base64_sig), Some(_cert), Some(_rekor_bundle)) = (
                     json_value.get("base64Signature"),
                     json_value.get("cert"),
                     json_value.get("rekorBundle"),
                 ) {
+                    log::debug!("Found traditional Cosign bundle format");
                     // This is a traditional Cosign bundle, create a minimal DSSE envelope for compatibility
                     let bundle = SigstoreBundle {
                         media_type: "application/vnd.dev.sigstore.bundle+json;version=0.1"
@@ -217,6 +225,12 @@ impl AttestationSource for FileSource {
                         bundle: Some(bundle),
                         bundle_url: None,
                     };
+                    attestations.push(attestation);
+                    continue;
+                }
+
+                // Try to parse as an existing attestation format
+                if let Ok(attestation) = serde_json::from_value::<Attestation>(json_value.clone()) {
                     attestations.push(attestation);
                     continue;
                 }

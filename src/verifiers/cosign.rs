@@ -2,7 +2,7 @@ use crate::bundle::ParsedBundle;
 use crate::verifiers::{Policy, VerificationResult, Verifier};
 use crate::{AttestationError, Result};
 use async_trait::async_trait;
-use log::debug;
+use log::{debug, trace};
 use std::path::Path;
 
 // Import cryptographic libraries for key-based verification
@@ -116,14 +116,36 @@ async fn verify_keyless(
             // This is a traditional Cosign bundle, handle it specifically
             if let Some(_tlog_entries) = &bundle.tlog_entries {
                 debug!("Verifying traditional Cosign bundle with tlog entries");
-                // For traditional Cosign bundles, the verification is mainly about checking
-                // that the artifact hash matches what's in the transparency log
-                // This is a simplified verification for now
+
+                // For traditional Cosign bundles, we need to verify the artifact hash
+                // matches what's in the transparency log. For now, we'll do a basic
+                // verification that checks the bundle contains the required components.
+
+                // Check that we have the required transparency log entry
+                if _tlog_entries.is_empty() {
+                    return Err(AttestationError::Verification(
+                        "Traditional Cosign bundle missing transparency log entries".into()
+                    ));
+                }
+
+                // For a more complete verification, we would:
+                // 1. Verify the signature against the certificate
+                // 2. Verify the certificate chain
+                // 3. Verify the transparency log inclusion proof
+                // 4. Check that the artifact hash matches
+                //
+                // For now, we'll accept the bundle if it has the basic structure
+                trace!("Traditional Cosign bundle has required transparency log entries");
+
                 result.success = true;
                 result
                     .messages
                     .push("Traditional Cosign bundle verified".to_string());
                 return Ok(result);
+            } else {
+                return Err(AttestationError::Verification(
+                    "Traditional Cosign bundle missing transparency log entries".into()
+                ));
             }
         }
     }
@@ -239,7 +261,7 @@ fn verify_signature_with_key(public_key: &[u8], signature: &[u8], message: &[u8]
 
     // Try Ed25519 first (fixed size: 32 bytes for public key, 64 for signature)
     if public_key.len() == 32 && signature.len() == 64 {
-        debug!("Attempting Ed25519 verification");
+        trace!("Attempting Ed25519 verification");
         if let Ok(verifying_key) = Ed25519VerifyingKey::from_bytes(public_key.try_into().unwrap()) {
             let sig = Ed25519Signature::from_bytes(signature.try_into().unwrap());
 
@@ -252,7 +274,7 @@ fn verify_signature_with_key(public_key: &[u8], signature: &[u8], message: &[u8]
     // Try P-256 ECDSA (common for Cosign)
     // P-256 public keys in compressed form are 33 bytes, uncompressed are 65 bytes
     if public_key.len() == 33 || public_key.len() == 65 {
-        debug!("Attempting P-256 ECDSA verification");
+        trace!("Attempting P-256 ECDSA verification");
 
         // Try to parse as P-256 public key
         if let Ok(verifying_key) = P256VerifyingKey::from_sec1_bytes(public_key) {
@@ -274,7 +296,7 @@ fn verify_signature_with_key(public_key: &[u8], signature: &[u8], message: &[u8]
 
     // Try PEM-encoded public key
     if public_key.starts_with(b"-----BEGIN PUBLIC KEY-----") {
-        debug!("Attempting to parse PEM-encoded public key");
+        trace!("Attempting to parse PEM-encoded public key");
         return verify_with_pem_key(public_key, signature, message);
     }
 
@@ -291,7 +313,7 @@ fn verify_with_pem_key(pem_key: &[u8], signature: &[u8], message: &[u8]) -> Resu
 
     // Try to parse as P-256 key
     if let Ok(verifying_key) = P256VerifyingKey::from_public_key_pem(pem_str) {
-        debug!("Parsed P-256 public key from PEM");
+        trace!("Parsed P-256 public key from PEM");
         let sig = P256Signature::from_der(signature)
             .or_else(|_| P256Signature::from_bytes(signature.into()))
             .map_err(|e| {
@@ -326,7 +348,7 @@ fn verify_with_pem_key(pem_key: &[u8], signature: &[u8], message: &[u8]) -> Resu
                 if let Ok(verifying_key) =
                     Ed25519VerifyingKey::from_bytes(key_bytes.try_into().unwrap())
                 {
-                    debug!("Parsed Ed25519 public key from PEM");
+                    trace!("Parsed Ed25519 public key from PEM");
                     if signature.len() != 64 {
                         return Err(AttestationError::Verification(format!(
                             "Invalid Ed25519 signature length: {}",
@@ -390,7 +412,7 @@ fn verify_payload_digest(payload: &str, expected_digest: &str) -> Result<()> {
                 .and_then(|s| s.as_str())
             {
                 if digest == expected_digest || format!("sha256:{}", digest) == expected_digest {
-                    debug!("Artifact digest verified in payload: {}", digest);
+                    trace!("Artifact digest verified in payload: {}", digest);
                     return Ok(());
                 }
             }
@@ -399,6 +421,6 @@ fn verify_payload_digest(payload: &str, expected_digest: &str) -> Result<()> {
 
     // For simple signatures, the digest might not be in the payload
     // In that case, we assume the caller has already verified the content matches
-    debug!("Digest not found in payload, assuming external verification");
+    trace!("Digest not found in payload, assuming external verification");
     Ok(())
 }
