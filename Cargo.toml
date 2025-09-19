@@ -12,7 +12,7 @@ rust-version = "1.85"
 
 [dependencies]
 async-trait = "0.1"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
@@ -30,9 +30,26 @@ ed25519-dalek = { version = "2", features = ["pem"] }
 signature = "2"
 
 # Sigstore dependencies for verification
-sigstore = { version = "0.12", features = ["bundle", "sigstore-trust-root", "cosign", "rekor", "fulcio", "cert"] }
+sigstore = { version = "0.12", default-features = false, features = ["bundle", "sigstore-trust-root", "cosign", "rekor", "fulcio", "cert"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
 mockito = "1"
 tempfile = "3"
+
+[features]
+default = ["native-tls"]
+
+# TLS backend features - choose one
+native-tls = [
+    "reqwest/native-tls",
+    "sigstore/native-tls",
+]
+rustls = [
+    "reqwest/rustls-tls",
+    "sigstore/rustls-tls",
+]
+rustls-native-roots = [
+    "reqwest/rustls-tls-native-roots",
+    "sigstore/rustls-tls-native-roots",
+]
