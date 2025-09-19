@@ -62,7 +62,10 @@ impl AttestationSource for FileSource {
 
             log::trace!("Parsing line of length: {}", line.len());
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
-                log::trace!("Successfully parsed JSON with keys: {:?}", json_value.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+                log::trace!(
+                    "Successfully parsed JSON with keys: {:?}",
+                    json_value.as_object().map(|o| o.keys().collect::<Vec<_>>())
+                );
                 // Check if this is a Sigstore Bundle v0.3 format
                 if let (Some(media_type), Some(dsse_envelope)) =
                     (json_value.get("mediaType"), json_value.get("dsseEnvelope"))

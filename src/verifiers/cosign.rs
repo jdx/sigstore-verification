@@ -124,7 +124,7 @@ async fn verify_keyless(
                 // Check that we have the required transparency log entry
                 if _tlog_entries.is_empty() {
                     return Err(AttestationError::Verification(
-                        "Traditional Cosign bundle missing transparency log entries".into()
+                        "Traditional Cosign bundle missing transparency log entries".into(),
                     ));
                 }
 
@@ -144,7 +144,7 @@ async fn verify_keyless(
                 return Ok(result);
             } else {
                 return Err(AttestationError::Verification(
-                    "Traditional Cosign bundle missing transparency log entries".into()
+                    "Traditional Cosign bundle missing transparency log entries".into(),
                 ));
             }
         }
