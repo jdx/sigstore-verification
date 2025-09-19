@@ -30,7 +30,7 @@ ed25519-dalek = { version = "2", features = ["pem"] }
 signature = "2"
 
 # Sigstore dependencies for verification
-sigstore = { version = "0.12", default-features = false, features = ["bundle", "sigstore-trust-root", "cosign", "rekor", "fulcio", "cert"] }
+sigstore = { version = "0.12", default-features = false, features = ["bundle", "sigstore-trust-root", "cosign", "rekor", "fulcio", "cert", "ring"] } # TODO: if we can get cross to work with aws-lc we can remove ring
 
 [dev-dependencies]
 tokio-test = "0.4"
