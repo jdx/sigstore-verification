@@ -53,6 +53,58 @@ impl AttestationSource for FileSource {
             }
 
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
+                // Check if this is a Sigstore Bundle v0.3 format
+                if let (Some(media_type), Some(dsse_envelope)) = (
+                    json_value.get("mediaType"),
+                    json_value.get("dsseEnvelope")
+                ) {
+                    if media_type.as_str() == Some("application/vnd.dev.sigstore.bundle.v0.3+json") {
+                        // Parse the nested DSSE envelope
+                        if let (Some(payload_type), Some(payload), Some(signatures)) = (
+                            dsse_envelope.get("payloadType"),
+                            dsse_envelope.get("payload"),
+                            dsse_envelope.get("signatures")
+                        ) {
+                            if payload_type.as_str() == Some("application/vnd.in-toto+json") {
+                                let mut parsed_signatures = Vec::new();
+                                if let Some(sig_array) = signatures.as_array() {
+                                    for sig_obj in sig_array {
+                                        let sig_string = sig_obj.get("sig")
+                                            .and_then(|s| s.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        let keyid = sig_obj.get("keyid")
+                                            .and_then(|k| k.as_str())
+                                            .map(|s| s.to_string());
+
+                                        parsed_signatures.push(Signature {
+                                            sig: sig_string,
+                                            keyid,
+                                        });
+                                    }
+                                }
+
+                                let bundle = SigstoreBundle {
+                                    media_type: media_type.as_str().unwrap_or("").to_string(),
+                                    dsse_envelope: DsseEnvelope {
+                                        payload: payload.as_str().unwrap_or("").to_string(),
+                                        payload_type: payload_type.as_str().unwrap_or("").to_string(),
+                                        signatures: parsed_signatures,
+                                    },
+                                    verification_material: json_value.get("verificationMaterial").cloned(),
+                                };
+
+                                let attestation = Attestation {
+                                    bundle: Some(bundle),
+                                    bundle_url: None,
+                                };
+                                attestations.push(attestation);
+                                continue;
+                            }
+                        }
+                    }
+                }
+
                 // Check if this is a DSSE envelope (SLSA provenance format)
                 if let (Some(payload_type), Some(payload), Some(signatures)) = (
                     json_value.get("payloadType"),
