@@ -28,7 +28,7 @@ impl AttestationSource for OciSource {
         // 2. Look for attestations attached to the artifact digest
         // 3. Download and parse the attestation bundles
         Err(AttestationError::Verification(
-            "OCI source not yet implemented".into()
+            "OCI source not yet implemented".into(),
         ))
     }
 

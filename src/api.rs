@@ -1,5 +1,5 @@
 use crate::{AttestationError, Result};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue, USER_AGENT};
 use serde::{Deserialize, Serialize};
 
 const GITHUB_API_URL: &str = "https://api.github.com";
@@ -97,12 +97,7 @@ impl AttestationClient {
             query_params.push(("predicate_type", predicate_type.clone()));
         }
 
-        let response = self
-            .client
-            .get(&url)
-            .query(&query_params)
-            .send()
-            .await?;
+        let response = self.client.get(&url).query(&query_params).send().await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -112,7 +107,10 @@ impl AttestationClient {
                 return Ok(Vec::new());
             }
 
-            let body = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AttestationError::Api(format!(
                 "GitHub API returned {}: {}",
                 status, body

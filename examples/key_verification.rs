@@ -1,4 +1,4 @@
-use sigstore_verification::{verify_cosign_signature_with_key, Result};
+use sigstore_verification::{Result, verify_cosign_signature_with_key};
 use std::path::Path;
 
 #[tokio::main]
@@ -14,11 +14,7 @@ async fn main() -> Result<()> {
     // 2. A signature file created with: cosign sign-blob --key cosign.key example_artifact.tar.gz > example_artifact.sig
     // 3. A public key file (cosign.pub)
 
-    match verify_cosign_signature_with_key(
-        artifact_path,
-        signature_path,
-        public_key_path,
-    ).await {
+    match verify_cosign_signature_with_key(artifact_path, signature_path, public_key_path).await {
         Ok(true) => {
             println!("✅ Signature verification successful!");
             println!("The artifact has been verified with the provided public key.");
@@ -32,8 +28,8 @@ async fn main() -> Result<()> {
     }
 
     // Example: Create a verifier with an inline PEM key
-    use sigstore_verification::verifiers::cosign::CosignVerifier;
     use sigstore_verification::sources::file::FileSource;
+    use sigstore_verification::verifiers::cosign::CosignVerifier;
     use sigstore_verification::verify_artifact;
 
     let pem_key = r#"-----BEGIN PUBLIC KEY-----

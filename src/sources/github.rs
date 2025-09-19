@@ -1,6 +1,6 @@
+use crate::Result;
 use crate::api::{Attestation, AttestationClient, FetchParams};
 use crate::sources::{ArtifactRef, AttestationSource};
-use crate::Result;
 use async_trait::async_trait;
 
 /// GitHub attestation source for fetching attestations from GitHub's API
@@ -11,7 +11,11 @@ pub struct GitHubSource {
 }
 
 impl GitHubSource {
-    pub fn new(owner: impl Into<String>, repo: impl Into<String>, token: Option<&str>) -> Result<Self> {
+    pub fn new(
+        owner: impl Into<String>,
+        repo: impl Into<String>,
+        token: Option<&str>,
+    ) -> Result<Self> {
         Ok(Self {
             client: AttestationClient::new(token)?,
             owner: owner.into(),

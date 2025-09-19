@@ -8,7 +8,7 @@
 // 2. Sign an artifact: `cosign sign-blob --key cosign.key artifact.txt > artifact.sig`
 // 3. Run this example with the artifact, signature, and public key
 
-use sigstore_verification::{verify_cosign_signature_with_key, Result};
+use sigstore_verification::{Result, verify_cosign_signature_with_key};
 use std::env;
 use std::path::Path;
 
@@ -23,7 +23,9 @@ async fn main() -> Result<()> {
         eprintln!("  {} artifact.txt artifact.sig cosign.pub", args[0]);
         eprintln!("\nTo create test files:");
         eprintln!("  1. Generate keys: cosign generate-key-pair");
-        eprintln!("  2. Sign artifact: cosign sign-blob --key cosign.key artifact.txt > artifact.sig");
+        eprintln!(
+            "  2. Sign artifact: cosign sign-blob --key cosign.key artifact.txt > artifact.sig"
+        );
         std::process::exit(1);
     }
 
@@ -36,18 +38,16 @@ async fn main() -> Result<()> {
     println!("🔑 With public key: {:?}", public_key_path);
     println!();
 
-    match verify_cosign_signature_with_key(
-        artifact_path,
-        signature_path,
-        public_key_path,
-    ).await {
+    match verify_cosign_signature_with_key(artifact_path, signature_path, public_key_path).await {
         Ok(true) => {
             println!("✅ Verification successful!");
             println!("The artifact signature is valid and was signed with the provided key.");
         }
         Ok(false) => {
             println!("❌ Verification failed!");
-            println!("The signature does not match the artifact or was not signed with the provided key.");
+            println!(
+                "The signature does not match the artifact or was not signed with the provided key."
+            );
             std::process::exit(1);
         }
         Err(e) => {

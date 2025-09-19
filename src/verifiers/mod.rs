@@ -1,9 +1,9 @@
 pub mod cosign;
-pub mod slsa;
 pub mod github;
+pub mod slsa;
 
-use crate::bundle::ParsedBundle;
 use crate::Result;
+use crate::bundle::ParsedBundle;
 use async_trait::async_trait;
 use std::path::Path;
 

@@ -1,7 +1,7 @@
-use sigstore_verification::{Result, Verifier};
 use sigstore_verification::verifiers::cosign::CosignVerifier;
-use tokio::fs;
+use sigstore_verification::{Result, Verifier};
 use tempfile::TempDir;
+use tokio::fs;
 
 #[tokio::test]
 async fn test_cosign_key_verification_with_pem() -> Result<()> {
@@ -67,6 +67,6 @@ async fn test_cosign_with_raw_key_bytes() {
 }
 
 fn base64_encode(data: Vec<u8>) -> String {
-    use base64::{engine::general_purpose::STANDARD, Engine};
+    use base64::{Engine, engine::general_purpose::STANDARD};
     STANDARD.encode(data)
 }

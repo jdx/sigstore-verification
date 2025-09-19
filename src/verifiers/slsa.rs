@@ -45,18 +45,24 @@ impl Verifier for SlsaVerifier {
 
         let min_level = policy.slsa_level.unwrap_or(self.min_level);
         if achieved_level < min_level {
-            return Err(AttestationError::Verification(
-                format!("SLSA level {} required, but only level {} achieved", min_level, achieved_level)
-            ));
+            return Err(AttestationError::Verification(format!(
+                "SLSA level {} required, but only level {} achieved",
+                min_level, achieved_level
+            )));
         }
 
         // Verify builder identity if specified
         if !self.allowed_builders.is_empty() {
             let builder = extract_builder_id(&provenance)?;
-            if !self.allowed_builders.iter().any(|allowed| builder.contains(allowed)) {
-                return Err(AttestationError::Verification(
-                    format!("Builder '{}' not in allowed list", builder)
-                ));
+            if !self
+                .allowed_builders
+                .iter()
+                .any(|allowed| builder.contains(allowed))
+            {
+                return Err(AttestationError::Verification(format!(
+                    "Builder '{}' not in allowed list",
+                    builder
+                )));
             }
         }
 
@@ -71,7 +77,10 @@ impl Verifier for SlsaVerifier {
             builder_identity: provenance.workflow_ref.clone(),
             messages: vec![
                 format!("SLSA level {} verification successful", achieved_level),
-                format!("Builder: {}", provenance.workflow_ref.as_deref().unwrap_or("unknown")),
+                format!(
+                    "Builder: {}",
+                    provenance.workflow_ref.as_deref().unwrap_or("unknown")
+                ),
             ],
         })
     }
@@ -111,14 +120,22 @@ fn determine_slsa_level(provenance: &SlsaProvenance) -> Result<u8> {
 
 /// Extract builder ID from provenance
 fn extract_builder_id(provenance: &SlsaProvenance) -> Result<String> {
-    provenance.workflow_ref.clone()
+    provenance
+        .workflow_ref
+        .clone()
         .ok_or_else(|| AttestationError::Verification("No builder ID in provenance".into()))
 }
 
 /// Verify that the artifact digest is in the provenance subjects
-fn verify_artifact_in_provenance(_provenance: &SlsaProvenance, artifact_digest: &str) -> Result<()> {
+fn verify_artifact_in_provenance(
+    _provenance: &SlsaProvenance,
+    artifact_digest: &str,
+) -> Result<()> {
     // This is simplified - real implementation would parse the full provenance
     // and check the subject digests
-    debug!("Verifying artifact digest {} in provenance", artifact_digest);
+    debug!(
+        "Verifying artifact digest {} in provenance",
+        artifact_digest
+    );
     Ok(())
 }

@@ -6,7 +6,7 @@
 // - Signed Entry Timestamps (SET)
 // - Integration with Sigstore trust roots
 
-use sigstore_verification::{verify_github_attestation, Result};
+use sigstore_verification::{Result, verify_github_attestation};
 use std::path::Path;
 
 #[tokio::main]
@@ -35,7 +35,9 @@ async fn main() -> Result<()> {
         repo,
         None, // No token for public repos
         None, // No specific workflow requirement
-    ).await {
+    )
+    .await
+    {
         Ok(true) => {
             println!("\n✅ Verification successful!");
             println!("The artifact has been verified including:");

@@ -1,8 +1,8 @@
-use crate::api::{Attestation, SigstoreBundle, DsseEnvelope, Signature};
+use crate::api::{Attestation, DsseEnvelope, Signature, SigstoreBundle};
 use crate::sources::{ArtifactRef, AttestationSource};
 use crate::{AttestationError, Result};
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 
@@ -25,8 +25,7 @@ impl FileSource {
             .await
             .map_err(AttestationError::Io)?;
 
-        serde_json::from_str(&content)
-            .map_err(AttestationError::Json)
+        serde_json::from_str(&content).map_err(AttestationError::Json)
     }
 
     /// Load a cosign signature from a .sig file
@@ -54,26 +53,28 @@ impl AttestationSource for FileSource {
 
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
                 // Check if this is a Sigstore Bundle v0.3 format
-                if let (Some(media_type), Some(dsse_envelope)) = (
-                    json_value.get("mediaType"),
-                    json_value.get("dsseEnvelope")
-                ) {
-                    if media_type.as_str() == Some("application/vnd.dev.sigstore.bundle.v0.3+json") {
+                if let (Some(media_type), Some(dsse_envelope)) =
+                    (json_value.get("mediaType"), json_value.get("dsseEnvelope"))
+                {
+                    if media_type.as_str() == Some("application/vnd.dev.sigstore.bundle.v0.3+json")
+                    {
                         // Parse the nested DSSE envelope
                         if let (Some(payload_type), Some(payload), Some(signatures)) = (
                             dsse_envelope.get("payloadType"),
                             dsse_envelope.get("payload"),
-                            dsse_envelope.get("signatures")
+                            dsse_envelope.get("signatures"),
                         ) {
                             if payload_type.as_str() == Some("application/vnd.in-toto+json") {
                                 let mut parsed_signatures = Vec::new();
                                 if let Some(sig_array) = signatures.as_array() {
                                     for sig_obj in sig_array {
-                                        let sig_string = sig_obj.get("sig")
+                                        let sig_string = sig_obj
+                                            .get("sig")
                                             .and_then(|s| s.as_str())
                                             .unwrap_or("")
                                             .to_string();
-                                        let keyid = sig_obj.get("keyid")
+                                        let keyid = sig_obj
+                                            .get("keyid")
                                             .and_then(|k| k.as_str())
                                             .map(|s| s.to_string());
 
@@ -88,10 +89,15 @@ impl AttestationSource for FileSource {
                                     media_type: media_type.as_str().unwrap_or("").to_string(),
                                     dsse_envelope: DsseEnvelope {
                                         payload: payload.as_str().unwrap_or("").to_string(),
-                                        payload_type: payload_type.as_str().unwrap_or("").to_string(),
+                                        payload_type: payload_type
+                                            .as_str()
+                                            .unwrap_or("")
+                                            .to_string(),
                                         signatures: parsed_signatures,
                                     },
-                                    verification_material: json_value.get("verificationMaterial").cloned(),
+                                    verification_material: json_value
+                                        .get("verificationMaterial")
+                                        .cloned(),
                                 };
 
                                 let attestation = Attestation {
@@ -109,18 +115,20 @@ impl AttestationSource for FileSource {
                 if let (Some(payload_type), Some(payload), Some(signatures)) = (
                     json_value.get("payloadType"),
                     json_value.get("payload"),
-                    json_value.get("signatures")
+                    json_value.get("signatures"),
                 ) {
                     if payload_type.as_str() == Some("application/vnd.in-toto+json") {
                         // This is a DSSE envelope, parse it into a SigstoreBundle
                         let mut parsed_signatures = Vec::new();
                         if let Some(sig_array) = signatures.as_array() {
                             for sig_obj in sig_array {
-                                let sig_string = sig_obj.get("sig")
+                                let sig_string = sig_obj
+                                    .get("sig")
                                     .and_then(|s| s.as_str())
                                     .unwrap_or("")
                                     .to_string();
-                                let keyid = sig_obj.get("keyid")
+                                let keyid = sig_obj
+                                    .get("keyid")
                                     .and_then(|k| k.as_str())
                                     .map(|s| s.to_string());
 
@@ -158,7 +166,8 @@ impl AttestationSource for FileSource {
                         let bundle = SigstoreBundle {
                             media_type: "application/vnd.in-toto+json".to_string(),
                             dsse_envelope: DsseEnvelope {
-                                payload: BASE64.encode(serde_json::to_string(&json_value)?.as_bytes()),
+                                payload: BASE64
+                                    .encode(serde_json::to_string(&json_value)?.as_bytes()),
                                 payload_type: "application/vnd.in-toto+json".to_string(),
                                 signatures: vec![Signature {
                                     sig: "".to_string(), // Minimal signature for parsing
@@ -183,6 +192,35 @@ impl AttestationSource for FileSource {
                     continue;
                 }
 
+                // Check if this is a traditional Cosign bundle format
+                if let (Some(_base64_sig), Some(_cert), Some(_rekor_bundle)) = (
+                    json_value.get("base64Signature"),
+                    json_value.get("cert"),
+                    json_value.get("rekorBundle"),
+                ) {
+                    // This is a traditional Cosign bundle, create a minimal DSSE envelope for compatibility
+                    let bundle = SigstoreBundle {
+                        media_type: "application/vnd.dev.sigstore.bundle+json;version=0.1"
+                            .to_string(),
+                        dsse_envelope: DsseEnvelope {
+                            payload: "".to_string(), // Empty payload for traditional Cosign bundles
+                            payload_type: "application/vnd.dev.sigstore.cosign".to_string(),
+                            signatures: vec![Signature {
+                                sig: "".to_string(), // Signature is in the rekor bundle
+                                keyid: None,
+                            }],
+                        },
+                        verification_material: Some(json_value.clone()), // Store the entire Cosign bundle as verification material
+                    };
+
+                    let attestation = Attestation {
+                        bundle: Some(bundle),
+                        bundle_url: None,
+                    };
+                    attestations.push(attestation);
+                    continue;
+                }
+
                 // Try as a raw bundle format - convert JSON to SigstoreBundle
                 if let Ok(bundle) = serde_json::from_value::<SigstoreBundle>(json_value) {
                     let attestation = Attestation {
@@ -196,7 +234,7 @@ impl AttestationSource for FileSource {
 
         if attestations.is_empty() {
             return Err(AttestationError::Verification(
-                "File does not contain valid attestations or SLSA provenance".into()
+                "File does not contain valid attestations or SLSA provenance".into(),
             ));
         }
 

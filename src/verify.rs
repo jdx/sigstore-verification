@@ -1,18 +1,21 @@
-use crate::bundle::{parse_bundle, parse_slsa_provenance, DsseEnvelope, ParsedBundle};
-use crate::{api::Attestation, AttestationError, Result};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use crate::bundle::{DsseEnvelope, ParsedBundle, parse_bundle, parse_slsa_provenance};
+use crate::{AttestationError, Result, api::Attestation};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use log::debug;
 use sha2::{Digest, Sha256};
 use sigstore::cosign::{ClientBuilder, CosignCapabilities};
-use sigstore::trust::sigstore::SigstoreTrustRoot;
 use sigstore::trust::TrustRoot;
+use sigstore::trust::sigstore::SigstoreTrustRoot;
 use std::path::Path;
 use std::sync::Arc;
 
 // Cryptographic imports for signature verification
-use p256::ecdsa::{signature::Verifier as P256Verifier, VerifyingKey as P256VerifyingKey, Signature as P256Signature};
-use p384::ecdsa::{VerifyingKey as P384VerifyingKey, Signature as P384Signature};
-use ed25519_dalek::{VerifyingKey as Ed25519VerifyingKey, Signature as Ed25519Signature};
+use ed25519_dalek::{Signature as Ed25519Signature, VerifyingKey as Ed25519VerifyingKey};
+use p256::ecdsa::{
+    Signature as P256Signature, VerifyingKey as P256VerifyingKey,
+    signature::Verifier as P256Verifier,
+};
+use p384::ecdsa::{Signature as P384Signature, VerifyingKey as P384VerifyingKey};
 use x509_parser::prelude::*;
 
 pub async fn verify_attestations(
@@ -75,7 +78,10 @@ async fn verify_single_attestation(
         if let Some(workflow_ref) = &provenance.workflow_ref {
             // Check if either contains the other (handles partial paths)
             if !workflow_ref.contains(expected) && !expected.contains(workflow_ref) {
-                debug!("Workflow mismatch in provenance: expected '{}', got '{}'", expected, workflow_ref);
+                debug!(
+                    "Workflow mismatch in provenance: expected '{}', got '{}'",
+                    expected, workflow_ref
+                );
                 // Don't fail here, will check certificate later
             }
         }
@@ -192,16 +198,18 @@ pub fn verify_certificate(cert_pem: &str) -> Result<CertificateInfo> {
     use x509_parser::prelude::*;
 
     // Decode base64 certificate
-    let cert_bytes = BASE64
-        .decode(cert_pem)
-        .map_err(|e| AttestationError::Verification(format!("Failed to decode certificate: {}", e)))?;
+    let cert_bytes = BASE64.decode(cert_pem).map_err(|e| {
+        AttestationError::Verification(format!("Failed to decode certificate: {}", e))
+    })?;
 
     // Parse X.509 certificate
-    let (_, cert) = X509Certificate::from_der(&cert_bytes)
-        .map_err(|e| AttestationError::Verification(format!("Failed to parse certificate: {}", e)))?;
+    let (_, cert) = X509Certificate::from_der(&cert_bytes).map_err(|e| {
+        AttestationError::Verification(format!("Failed to parse certificate: {}", e))
+    })?;
 
     // Extract issuer information
-    let issuer = cert.issuer()
+    let issuer = cert
+        .issuer()
         .iter_common_name()
         .next()
         .and_then(|cn| cn.as_str().ok())
@@ -229,23 +237,29 @@ pub fn verify_certificate(cert_pem: &str) -> Result<CertificateInfo> {
                                 workflow_ref_full = Some(uri_str.clone());
 
                                 // Extract just the workflow file name
-                                if let Some(workflow_part) = uri_str.split("/.github/workflows/").nth(1) {
+                                if let Some(workflow_part) =
+                                    uri_str.split("/.github/workflows/").nth(1)
+                                {
                                     if let Some(workflow_file) = workflow_part.split('@').next() {
                                         workflow_name = Some(workflow_file.to_string());
                                     }
                                 }
 
                                 // Extract repository
-                                if let Some(repo_part) = uri_str.strip_prefix("https://github.com/") {
+                                if let Some(repo_part) = uri_str.strip_prefix("https://github.com/")
+                                {
                                     if let Some(repo_end) = repo_part.find("/.github/workflows/") {
                                         repository = Some(repo_part[..repo_end].to_string());
                                     }
                                 }
                             } else if !uri_str.contains("/actions/runs/") {
                                 // Repository URL
-                                repository = Some(uri_str.strip_prefix("https://github.com/")
-                                    .unwrap_or(&uri_str)
-                                    .to_string());
+                                repository = Some(
+                                    uri_str
+                                        .strip_prefix("https://github.com/")
+                                        .unwrap_or(&uri_str)
+                                        .to_string(),
+                                );
                             }
                         }
                     }
@@ -267,10 +281,7 @@ pub fn verify_certificate(cert_pem: &str) -> Result<CertificateInfo> {
 }
 
 /// Extract workflow identity from certificate and verify it matches expected
-pub fn verify_workflow_identity_from_cert(
-    cert_pem: &str,
-    expected_workflow: &str,
-) -> Result<bool> {
+pub fn verify_workflow_identity_from_cert(cert_pem: &str, expected_workflow: &str) -> Result<bool> {
     let cert_info = verify_certificate(cert_pem)?;
 
     if let Some(workflow_ref) = &cert_info.workflow_ref {
@@ -299,7 +310,10 @@ async fn get_sigstore_trust_root() -> Option<Arc<SigstoreTrustRoot>> {
             Some(Arc::new(root))
         }
         Err(e) => {
-            debug!("Failed to fetch Sigstore trust root: {}. Will use simplified verification.", e);
+            debug!(
+                "Failed to fetch Sigstore trust root: {}. Will use simplified verification.",
+                e
+            );
             None
         }
     }
@@ -307,37 +321,44 @@ async fn get_sigstore_trust_root() -> Option<Arc<SigstoreTrustRoot>> {
 
 /// Fetch the Sigstore trust root from the TUF repository
 async fn fetch_sigstore_trust_root() -> Result<SigstoreTrustRoot> {
-    SigstoreTrustRoot::new(None).await
+    SigstoreTrustRoot::new(None)
+        .await
         .map_err(|e| AttestationError::Verification(format!("Failed to fetch trust root: {}", e)))
 }
 
 /// Verify a Sigstore bundle including certificate chain and signatures
 async fn verify_sigstore_bundle(bundle: &ParsedBundle) -> Result<()> {
     // Check for required components
-    let cert_pem = bundle.certificate.as_ref()
+    let cert_pem = bundle
+        .certificate
+        .as_ref()
         .ok_or_else(|| AttestationError::Verification("No certificate in bundle".into()))?;
 
-    let envelope = bundle.dsse_envelope.as_ref()
+    let envelope = bundle
+        .dsse_envelope
+        .as_ref()
         .ok_or_else(|| AttestationError::Verification("No DSSE envelope in bundle".into()))?;
 
     // Decode the certificate
-    let cert_bytes = BASE64.decode(cert_pem)
-        .map_err(|e| AttestationError::Verification(format!("Failed to decode certificate: {}", e)))?;
+    let cert_bytes = BASE64.decode(cert_pem).map_err(|e| {
+        AttestationError::Verification(format!("Failed to decode certificate: {}", e))
+    })?;
 
     // Parse and validate certificate
     let cert_info = verify_certificate(cert_pem)?;
 
     // Validate that this is a GitHub Actions certificate from Sigstore
     if !cert_info.issuer.to_lowercase().contains("sigstore") {
-        return Err(AttestationError::Verification(
-            format!("Invalid issuer: expected sigstore, got '{}'", cert_info.issuer)
-        ));
+        return Err(AttestationError::Verification(format!(
+            "Invalid issuer: expected sigstore, got '{}'",
+            cert_info.issuer
+        )));
     }
 
     // Verify DSSE envelope structure
     if envelope.signatures.is_empty() {
         return Err(AttestationError::Verification(
-            "DSSE envelope has no signatures".into()
+            "DSSE envelope has no signatures".into(),
         ));
     }
 
@@ -349,7 +370,10 @@ async fn verify_sigstore_bundle(bundle: &ParsedBundle) -> Result<()> {
             Ok(())
         }
         Err(e) => {
-            debug!("Full Sigstore verification failed, falling back to basic checks: {}", e);
+            debug!(
+                "Full Sigstore verification failed, falling back to basic checks: {}",
+                e
+            );
             // Fall back to basic verification
             verify_basic_bundle_structure(envelope, &cert_info)
         }
@@ -363,8 +387,9 @@ async fn verify_with_sigstore_client(
     envelope: &DsseEnvelope,
 ) -> Result<()> {
     // Get the trust root
-    let trust_root = get_sigstore_trust_root().await
-        .ok_or_else(|| AttestationError::Verification("Could not fetch Sigstore trust root".into()))?;
+    let trust_root = get_sigstore_trust_root().await.ok_or_else(|| {
+        AttestationError::Verification("Could not fetch Sigstore trust root".into())
+    })?;
 
     // Build the Sigstore client
     let mut client = ClientBuilder::default()
@@ -399,12 +424,14 @@ fn verify_certificate_chain<T: CosignCapabilities>(
 ) -> Result<()> {
     // Parse the certificate
     use x509_parser::prelude::*;
-    let (_, cert) = X509Certificate::from_der(cert_bytes)
-        .map_err(|e| AttestationError::Verification(format!("Failed to parse certificate: {}", e)))?;
+    let (_, cert) = X509Certificate::from_der(cert_bytes).map_err(|e| {
+        AttestationError::Verification(format!("Failed to parse certificate: {}", e))
+    })?;
 
     // Get Fulcio certificates from trust root
-    let fulcio_certs = trust_root.fulcio_certs()
-        .map_err(|e| AttestationError::Verification(format!("Failed to get Fulcio certs: {}", e)))?;
+    let fulcio_certs = trust_root.fulcio_certs().map_err(|e| {
+        AttestationError::Verification(format!("Failed to get Fulcio certs: {}", e))
+    })?;
 
     // Verify the certificate was issued by Fulcio
     // This is a simplified check - full verification would build the complete chain
@@ -419,7 +446,7 @@ fn verify_certificate_chain<T: CosignCapabilities>(
 
     if !valid_chain {
         return Err(AttestationError::Verification(
-            "Certificate not issued by Fulcio".into()
+            "Certificate not issued by Fulcio".into(),
         ));
     }
 
@@ -435,12 +462,14 @@ fn verify_dsse_signature<T: CosignCapabilities>(
     payload: &str,
 ) -> Result<()> {
     // Parse the certificate to extract the public key
-    let (_, cert) = X509Certificate::from_der(cert_bytes)
-        .map_err(|e| AttestationError::Verification(format!("Failed to parse certificate: {}", e)))?;
+    let (_, cert) = X509Certificate::from_der(cert_bytes).map_err(|e| {
+        AttestationError::Verification(format!("Failed to parse certificate: {}", e))
+    })?;
 
     // Decode the signature
-    let sig_bytes = BASE64.decode(signature)
-        .map_err(|e| AttestationError::Verification(format!("Failed to decode signature: {}", e)))?;
+    let sig_bytes = BASE64.decode(signature).map_err(|e| {
+        AttestationError::Verification(format!("Failed to decode signature: {}", e))
+    })?;
 
     // Create the PAE (Pre-Authentication Encoding) for DSSE
     let pae = create_dsse_pae("application/vnd.in-toto+json", payload.as_bytes());
@@ -464,13 +493,14 @@ fn verify_dsse_signature<T: CosignCapabilities>(
         // RSA (less common for Fulcio but possible)
         "1.2.840.113549.1.1.1" => {
             return Err(AttestationError::Verification(
-                "RSA signature verification not yet implemented".into()
+                "RSA signature verification not yet implemented".into(),
             ));
         }
         other => {
-            return Err(AttestationError::Verification(
-                format!("Unsupported signature algorithm: {}", other)
-            ));
+            return Err(AttestationError::Verification(format!(
+                "Unsupported signature algorithm: {}",
+                other
+            )));
         }
     }
 
@@ -489,56 +519,90 @@ fn verify_ecdsa_signature(
 
     // Determine the curve from the algorithm parameters
     if let Some(params) = &public_key_info.algorithm.parameters {
-        let curve_oid = params.as_oid()
-            .map_err(|e| AttestationError::Verification(format!("Failed to parse curve OID: {}", e)))?;
+        let curve_oid = params.as_oid().map_err(|e| {
+            AttestationError::Verification(format!("Failed to parse curve OID: {}", e))
+        })?;
 
         match curve_oid.to_string().as_str() {
             // P-256 / secp256r1
             "1.2.840.10045.3.1.7" => {
-                let verifying_key = P256VerifyingKey::from_sec1_bytes(public_key_bytes)
-                    .map_err(|e| AttestationError::Verification(format!("Failed to parse P-256 public key: {}", e)))?;
+                let verifying_key =
+                    P256VerifyingKey::from_sec1_bytes(public_key_bytes).map_err(|e| {
+                        AttestationError::Verification(format!(
+                            "Failed to parse P-256 public key: {}",
+                            e
+                        ))
+                    })?;
 
                 let signature = P256Signature::from_der(signature)
                     .or_else(|_| P256Signature::from_bytes(signature.into()))
-                    .map_err(|e| AttestationError::Verification(format!("Failed to parse P-256 signature: {}", e)))?;
+                    .map_err(|e| {
+                        AttestationError::Verification(format!(
+                            "Failed to parse P-256 signature: {}",
+                            e
+                        ))
+                    })?;
 
-                verifying_key.verify(message, &signature)
-                    .map_err(|e| AttestationError::Verification(format!("P-256 signature verification failed: {}", e)))?;
+                verifying_key.verify(message, &signature).map_err(|e| {
+                    AttestationError::Verification(format!(
+                        "P-256 signature verification failed: {}",
+                        e
+                    ))
+                })?;
 
                 debug!("P-256 ECDSA signature verified successfully");
             }
             // P-384 / secp384r1
             "1.3.132.0.34" => {
-                let verifying_key = P384VerifyingKey::from_sec1_bytes(public_key_bytes)
-                    .map_err(|e| AttestationError::Verification(format!("Failed to parse P-384 public key: {}", e)))?;
+                let verifying_key =
+                    P384VerifyingKey::from_sec1_bytes(public_key_bytes).map_err(|e| {
+                        AttestationError::Verification(format!(
+                            "Failed to parse P-384 public key: {}",
+                            e
+                        ))
+                    })?;
 
                 let signature = P384Signature::from_der(signature)
                     .or_else(|_| P384Signature::from_bytes(signature.into()))
-                    .map_err(|e| AttestationError::Verification(format!("Failed to parse P-384 signature: {}", e)))?;
+                    .map_err(|e| {
+                        AttestationError::Verification(format!(
+                            "Failed to parse P-384 signature: {}",
+                            e
+                        ))
+                    })?;
 
                 use p384::ecdsa::signature::Verifier;
-                verifying_key.verify(message, &signature)
-                    .map_err(|e| AttestationError::Verification(format!("P-384 signature verification failed: {}", e)))?;
+                verifying_key.verify(message, &signature).map_err(|e| {
+                    AttestationError::Verification(format!(
+                        "P-384 signature verification failed: {}",
+                        e
+                    ))
+                })?;
 
                 debug!("P-384 ECDSA signature verified successfully");
             }
             other => {
-                return Err(AttestationError::Verification(
-                    format!("Unsupported EC curve: {}", other)
-                ));
+                return Err(AttestationError::Verification(format!(
+                    "Unsupported EC curve: {}",
+                    other
+                )));
             }
         }
     } else {
         // Try P-256 as default (most common for Fulcio)
-        let verifying_key = P256VerifyingKey::from_sec1_bytes(public_key_bytes)
-            .map_err(|e| AttestationError::Verification(format!("Failed to parse P-256 public key: {}", e)))?;
+        let verifying_key = P256VerifyingKey::from_sec1_bytes(public_key_bytes).map_err(|e| {
+            AttestationError::Verification(format!("Failed to parse P-256 public key: {}", e))
+        })?;
 
         let signature = P256Signature::from_der(signature)
             .or_else(|_| P256Signature::from_bytes(signature.into()))
-            .map_err(|e| AttestationError::Verification(format!("Failed to parse P-256 signature: {}", e)))?;
+            .map_err(|e| {
+                AttestationError::Verification(format!("Failed to parse P-256 signature: {}", e))
+            })?;
 
-        verifying_key.verify(message, &signature)
-            .map_err(|e| AttestationError::Verification(format!("P-256 signature verification failed: {}", e)))?;
+        verifying_key.verify(message, &signature).map_err(|e| {
+            AttestationError::Verification(format!("P-256 signature verification failed: {}", e))
+        })?;
 
         debug!("P-256 ECDSA signature verified successfully (default)");
     }
@@ -557,26 +621,31 @@ fn verify_ed25519_signature(
 
     // Ed25519 public keys should be exactly 32 bytes
     if public_key_bytes.len() != 32 {
-        return Err(AttestationError::Verification(
-            format!("Invalid Ed25519 public key length: {} (expected 32)", public_key_bytes.len())
-        ));
+        return Err(AttestationError::Verification(format!(
+            "Invalid Ed25519 public key length: {} (expected 32)",
+            public_key_bytes.len()
+        )));
     }
 
     let verifying_key = Ed25519VerifyingKey::from_bytes(public_key_bytes.try_into().unwrap())
-        .map_err(|e| AttestationError::Verification(format!("Failed to parse Ed25519 public key: {}", e)))?;
+        .map_err(|e| {
+            AttestationError::Verification(format!("Failed to parse Ed25519 public key: {}", e))
+        })?;
 
     // Ed25519 signatures should be exactly 64 bytes
     if signature.len() != 64 {
-        return Err(AttestationError::Verification(
-            format!("Invalid Ed25519 signature length: {} (expected 64)", signature.len())
-        ));
+        return Err(AttestationError::Verification(format!(
+            "Invalid Ed25519 signature length: {} (expected 64)",
+            signature.len()
+        )));
     }
 
     let signature = Ed25519Signature::from_bytes(signature.try_into().unwrap());
 
     use ed25519_dalek::Verifier;
-    verifying_key.verify(message, &signature)
-        .map_err(|e| AttestationError::Verification(format!("Ed25519 signature verification failed: {}", e)))?;
+    verifying_key.verify(message, &signature).map_err(|e| {
+        AttestationError::Verification(format!("Ed25519 signature verification failed: {}", e))
+    })?;
 
     debug!("Ed25519 signature verified successfully");
     Ok(())
@@ -606,57 +675,66 @@ fn verify_rekor_inclusion<T: CosignCapabilities>(
     tlog_entry: &serde_json::Value,
     trust_root: &SigstoreTrustRoot,
 ) -> Result<()> {
-
     // Extract log index from tlog entry
-    let log_index = tlog_entry.get("logIndex")
+    let log_index = tlog_entry
+        .get("logIndex")
         .and_then(|v| v.as_i64())
         .ok_or_else(|| AttestationError::Verification("No log index in tlog entry".into()))?;
 
     // Verify the signed entry timestamp (SET) and inclusion proof
 
     // 1. Extract the canonicalized entry from the tlog entry
-    let canonicalized_body = tlog_entry.get("canonicalizedBody")
+    let canonicalized_body = tlog_entry
+        .get("canonicalizedBody")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| AttestationError::Verification("No canonicalized body in tlog entry".into()))?;
+        .ok_or_else(|| {
+            AttestationError::Verification("No canonicalized body in tlog entry".into())
+        })?;
 
     // 2. Extract the integrated time (timestamp when entry was added to log)
-    let integrated_time = tlog_entry.get("integratedTime")
+    let integrated_time = tlog_entry
+        .get("integratedTime")
         .and_then(|v| v.as_i64())
         .ok_or_else(|| AttestationError::Verification("No integrated time in tlog entry".into()))?;
 
     // 3. Extract the inclusion proof if present
     if let Some(inclusion_proof) = tlog_entry.get("inclusionProof") {
         // Extract inclusion proof components
-        let root_hash = inclusion_proof.get("rootHash")
+        let root_hash = inclusion_proof
+            .get("rootHash")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| AttestationError::Verification("No root hash in inclusion proof".into()))?;
+            .ok_or_else(|| {
+                AttestationError::Verification("No root hash in inclusion proof".into())
+            })?;
 
-        let tree_size = inclusion_proof.get("treeSize")
+        let tree_size = inclusion_proof
+            .get("treeSize")
             .and_then(|v| v.as_i64())
-            .ok_or_else(|| AttestationError::Verification("No tree size in inclusion proof".into()))?;
+            .ok_or_else(|| {
+                AttestationError::Verification("No tree size in inclusion proof".into())
+            })?;
 
-        let hashes = inclusion_proof.get("hashes")
+        let hashes = inclusion_proof
+            .get("hashes")
             .and_then(|v| v.as_array())
             .ok_or_else(|| AttestationError::Verification("No hashes in inclusion proof".into()))?;
 
-        debug!("Verifying Merkle tree inclusion proof for log index {}", log_index);
+        debug!(
+            "Verifying Merkle tree inclusion proof for log index {}",
+            log_index
+        );
         debug!("  Root hash: {}", root_hash);
         debug!("  Tree size: {}", tree_size);
         debug!("  Proof hashes: {} nodes", hashes.len());
 
         // Verify the inclusion proof
-        verify_merkle_inclusion_proof(
-            canonicalized_body,
-            log_index,
-            tree_size,
-            root_hash,
-            hashes,
-        )?;
+        verify_merkle_inclusion_proof(canonicalized_body, log_index, tree_size, root_hash, hashes)?;
     }
 
     // 4. Verify the Signed Entry Timestamp (SET) if present
     if let Some(inclusion_promise) = tlog_entry.get("inclusionPromise") {
-        let signed_entry_timestamp = inclusion_promise.get("signedEntryTimestamp")
+        let signed_entry_timestamp = inclusion_promise
+            .get("signedEntryTimestamp")
             .and_then(|v| v.as_str())
             .ok_or_else(|| AttestationError::Verification("No signed entry timestamp".into()))?;
 
@@ -669,7 +747,10 @@ fn verify_rekor_inclusion<T: CosignCapabilities>(
         )?;
     }
 
-    debug!("Rekor transparency log entry verified at index {} with timestamp {}", log_index, integrated_time);
+    debug!(
+        "Rekor transparency log entry verified at index {} with timestamp {}",
+        log_index, integrated_time
+    );
     Ok(())
 }
 
@@ -681,22 +762,25 @@ fn verify_merkle_inclusion_proof(
     root_hash: &str,
     proof_hashes: &[serde_json::Value],
 ) -> Result<()> {
-    use sha2::{Sha256, Digest};
-    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+    use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+    use sha2::{Digest, Sha256};
 
     // Decode the entry data and root hash from base64
-    let entry_bytes = BASE64.decode(entry_data)
-        .map_err(|e| AttestationError::Verification(format!("Failed to decode entry data: {}", e)))?;
+    let entry_bytes = BASE64.decode(entry_data).map_err(|e| {
+        AttestationError::Verification(format!("Failed to decode entry data: {}", e))
+    })?;
 
-    let expected_root = BASE64.decode(root_hash)
-        .map_err(|e| AttestationError::Verification(format!("Failed to decode root hash: {}", e)))?;
+    let expected_root = BASE64.decode(root_hash).map_err(|e| {
+        AttestationError::Verification(format!("Failed to decode root hash: {}", e))
+    })?;
 
     // Convert proof hashes from base64
     let mut proof_nodes: Vec<Vec<u8>> = Vec::new();
     for hash in proof_hashes {
         if let Some(hash_str) = hash.as_str() {
-            let hash_bytes = BASE64.decode(hash_str)
-                .map_err(|e| AttestationError::Verification(format!("Failed to decode proof hash: {}", e)))?;
+            let hash_bytes = BASE64.decode(hash_str).map_err(|e| {
+                AttestationError::Verification(format!("Failed to decode proof hash: {}", e))
+            })?;
             proof_nodes.push(hash_bytes);
         }
     }
@@ -739,7 +823,7 @@ fn verify_merkle_inclusion_proof(
     // Compare the computed root with the expected root
     if current_hash != expected_root {
         return Err(AttestationError::Verification(
-            "Merkle inclusion proof verification failed: root hash mismatch".into()
+            "Merkle inclusion proof verification failed: root hash mismatch".into(),
         ));
     }
 
@@ -754,15 +838,17 @@ fn verify_signed_entry_timestamp(
     integrated_time: i64,
     trust_root: &SigstoreTrustRoot,
 ) -> Result<()> {
-    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-    use sha2::{Sha256, Digest};
+    use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+    use sha2::{Digest, Sha256};
 
     // Decode the signed timestamp
-    let signature_bytes = BASE64.decode(signed_timestamp_b64)
+    let signature_bytes = BASE64
+        .decode(signed_timestamp_b64)
         .map_err(|e| AttestationError::Verification(format!("Failed to decode SET: {}", e)))?;
 
     // Decode the canonicalized body
-    let body_bytes = BASE64.decode(canonicalized_body)
+    let body_bytes = BASE64
+        .decode(canonicalized_body)
         .map_err(|e| AttestationError::Verification(format!("Failed to decode body: {}", e)))?;
 
     // Create the message that was signed: body + integrated_time
@@ -776,7 +862,8 @@ fn verify_signed_entry_timestamp(
     let message_hash = hasher.finalize();
 
     // Get Rekor public keys from trust root
-    let rekor_keys = trust_root.rekor_keys()
+    let rekor_keys = trust_root
+        .rekor_keys()
         .map_err(|e| AttestationError::Verification(format!("Failed to get Rekor keys: {}", e)))?;
 
     // Try to verify with each Rekor public key
@@ -792,7 +879,7 @@ fn verify_signed_entry_timestamp(
 
     if !verification_succeeded {
         return Err(AttestationError::Verification(
-            "Failed to verify Signed Entry Timestamp with any Rekor key".into()
+            "Failed to verify Signed Entry Timestamp with any Rekor key".into(),
         ));
     }
 
@@ -805,7 +892,10 @@ fn verify_signature_with_public_key(
     signature: &[u8],
     message: &[u8],
 ) -> Result<()> {
-    use p256::ecdsa::{signature::Verifier as P256Verifier, VerifyingKey as P256VerifyingKey, Signature as P256Signature};
+    use p256::ecdsa::{
+        Signature as P256Signature, VerifyingKey as P256VerifyingKey,
+        signature::Verifier as P256Verifier,
+    };
     use p256::pkcs8::DecodePublicKey;
 
     // Parse the PEM public key
@@ -817,13 +907,18 @@ fn verify_signature_with_public_key(
         // Parse the signature (DER or raw format)
         let sig = P256Signature::from_der(signature)
             .or_else(|_| P256Signature::from_bytes(signature.into()))
-            .map_err(|e| AttestationError::Verification(format!("Failed to parse signature: {}", e)))?;
+            .map_err(|e| {
+                AttestationError::Verification(format!("Failed to parse signature: {}", e))
+            })?;
 
-        return verifying_key.verify(message, &sig)
-            .map_err(|e| AttestationError::Verification(format!("Signature verification failed: {}", e)));
+        return verifying_key.verify(message, &sig).map_err(|e| {
+            AttestationError::Verification(format!("Signature verification failed: {}", e))
+        });
     }
 
-    Err(AttestationError::Verification("Unsupported key type".into()))
+    Err(AttestationError::Verification(
+        "Unsupported key type".into(),
+    ))
 }
 
 /// Perform basic verification when full Sigstore verification is not available
@@ -835,7 +930,7 @@ fn verify_basic_bundle_structure(
     for sig in &envelope.signatures {
         if sig.sig.is_empty() {
             return Err(AttestationError::Verification(
-                "DSSE signature is empty".into()
+                "DSSE signature is empty".into(),
             ));
         }
     }
@@ -843,7 +938,7 @@ fn verify_basic_bundle_structure(
     // Ensure this is a GitHub Actions certificate
     if cert_info.workflow_ref.is_none() {
         return Err(AttestationError::Verification(
-            "Certificate does not contain GitHub workflow information".into()
+            "Certificate does not contain GitHub workflow information".into(),
         ));
     }
 

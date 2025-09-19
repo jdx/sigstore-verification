@@ -49,11 +49,8 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
-    - name: Run examples
-      run: |
-        cargo run --example key_verification
-        cargo run --example rekor_verification
-        cargo run --example verify_with_key
+    - name: Build examples
+      run: cargo build --examples
 
   minimal-versions:
     runs-on: ubuntu-latest
@@ -62,9 +59,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: nightly
+      uses: dtolnay/rust-toolchain@nightly
 
     - name: Install cargo-minimal-versions
       run: cargo install cargo-minimal-versions

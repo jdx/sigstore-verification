@@ -1,7 +1,7 @@
-pub use crate::api::DsseEnvelope;
 use crate::api::Attestation;
+pub use crate::api::DsseEnvelope;
 use crate::{AttestationError, Result};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use serde_json::Value;
 
 /// Parse and extract information from a Sigstore bundle
@@ -11,6 +11,25 @@ pub fn parse_bundle(attestation: &Attestation) -> Result<ParsedBundle> {
         .as_ref()
         .ok_or_else(|| AttestationError::Verification("No bundle found in attestation".into()))?;
 
+    // Check if this is a traditional Cosign bundle (empty payload in DSSE envelope, verification material contains the bundle)
+    if bundle.dsse_envelope.payload.is_empty()
+        && bundle.dsse_envelope.payload_type == "application/vnd.dev.sigstore.cosign"
+        && bundle.verification_material.is_some()
+    {
+        // Traditional Cosign bundle - extract what we can
+        let certificate = extract_certificate_from_bundle(attestation)?;
+        let tlog_entries = extract_tlog_entries_from_bundle(attestation)?;
+
+        return Ok(ParsedBundle {
+            payload: Vec::new(), // No SLSA payload for traditional Cosign bundles
+            dsse_envelope: Some(bundle.dsse_envelope.clone()),
+            certificate,
+            media_type: bundle.media_type.clone(),
+            tlog_entries,
+        });
+    }
+
+    // Standard DSSE envelope processing
     let payload = decode_payload(&bundle.dsse_envelope.payload)?;
 
     // Extract certificate if present
@@ -37,9 +56,10 @@ fn decode_payload(payload: &str) -> Result<Vec<u8>> {
 
 /// Extract certificate from verification material
 fn extract_certificate_from_bundle(attestation: &Attestation) -> Result<Option<String>> {
-    let bundle = attestation.bundle.as_ref().ok_or_else(|| {
-        AttestationError::Verification("No bundle found in attestation".into())
-    })?;
+    let bundle = attestation
+        .bundle
+        .as_ref()
+        .ok_or_else(|| AttestationError::Verification("No bundle found in attestation".into()))?;
 
     if let Some(verification_material) = &bundle.verification_material {
         if let Some(cert) = verification_material.get("certificate") {
@@ -55,12 +75,21 @@ fn extract_certificate_from_bundle(attestation: &Attestation) -> Result<Option<S
 }
 
 /// Extract tlog entries from verification material
-fn extract_tlog_entries_from_bundle(attestation: &Attestation) -> Result<Option<Vec<serde_json::Value>>> {
-    let bundle = attestation.bundle.as_ref().ok_or_else(|| {
-        AttestationError::Verification("No bundle found in attestation".into())
-    })?;
+fn extract_tlog_entries_from_bundle(
+    attestation: &Attestation,
+) -> Result<Option<Vec<serde_json::Value>>> {
+    let bundle = attestation
+        .bundle
+        .as_ref()
+        .ok_or_else(|| AttestationError::Verification("No bundle found in attestation".into()))?;
 
     if let Some(verification_material) = &bundle.verification_material {
+        // Handle traditional Cosign bundle format
+        if let Some(rekor_bundle) = verification_material.get("rekorBundle") {
+            return Ok(Some(vec![rekor_bundle.clone()]));
+        }
+
+        // Handle modern Sigstore bundle format
         if let Some(tlog_entries) = verification_material.get("tlogEntries") {
             if let Some(tlog_array) = tlog_entries.as_array() {
                 return Ok(Some(tlog_array.clone()));
@@ -80,9 +109,10 @@ pub fn parse_slsa_provenance(payload: &[u8]) -> Result<SlsaProvenance> {
     if let Some(type_field) = statement.get("_type") {
         let type_str = type_field.as_str().unwrap_or("");
         if !type_str.starts_with("https://in-toto.io/Statement/v") {
-            return Err(AttestationError::Verification(
-                format!("Not an in-toto statement: {}", type_str)
-            ));
+            return Err(AttestationError::Verification(format!(
+                "Not an in-toto statement: {}",
+                type_str
+            )));
         }
     }
 

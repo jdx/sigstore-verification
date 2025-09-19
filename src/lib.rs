@@ -3,12 +3,12 @@ use thiserror::Error;
 
 pub mod api;
 pub mod bundle;
-pub mod verify;
 pub mod sources;
 pub mod verifiers;
+pub mod verify;
 
 // Re-export commonly used types
-pub use api::{AttestationClient, FetchParams, Attestation};
+pub use api::{Attestation, AttestationClient, FetchParams};
 pub use bundle::{ParsedBundle, SlsaProvenance};
 pub use sources::{ArtifactRef, AttestationSource};
 pub use verifiers::{Policy, VerificationResult, Verifier};
@@ -78,12 +78,7 @@ pub async fn verify_cosign_signature(
     let source = sources::file::FileSource::new(sig_or_bundle_path);
     let verifier = verifiers::cosign::CosignVerifier::new_keyless();
 
-    let result = verify_artifact(
-        artifact_path,
-        &source,
-        &verifier,
-        None,
-    ).await?;
+    let result = verify_artifact(artifact_path, &source, &verifier, None).await?;
 
     Ok(result.success)
 }
@@ -97,12 +92,7 @@ pub async fn verify_cosign_signature_with_key(
     let source = sources::file::FileSource::new(sig_or_bundle_path);
     let verifier = verifiers::cosign::CosignVerifier::new_with_key_file(public_key_path).await?;
 
-    let result = verify_artifact(
-        artifact_path,
-        &source,
-        &verifier,
-        None,
-    ).await?;
+    let result = verify_artifact(artifact_path, &source, &verifier, None).await?;
 
     Ok(result.success)
 }
@@ -121,12 +111,7 @@ pub async fn verify_slsa_provenance(
         ..Default::default()
     };
 
-    let result = verify_artifact(
-        artifact_path,
-        &source,
-        &verifier,
-        Some(&policy),
-    ).await?;
+    let result = verify_artifact(artifact_path, &source, &verifier, Some(&policy)).await?;
 
     Ok(result.success)
 }
@@ -176,7 +161,7 @@ pub async fn verify_github_attestation(
 }
 
 pub fn calculate_file_digest(path: &Path) -> Result<String> {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     use std::fs::File;
     use std::io::Read;
 

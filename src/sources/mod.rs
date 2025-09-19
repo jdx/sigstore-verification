@@ -1,5 +1,5 @@
-pub mod github;
 pub mod file;
+pub mod github;
 pub mod oci;
 
 use crate::Result;
@@ -40,7 +40,10 @@ impl ArtifactRef {
 #[async_trait]
 pub trait AttestationSource: Send + Sync {
     /// Fetch attestations for a given artifact
-    async fn fetch_attestations(&self, artifact: &ArtifactRef) -> Result<Vec<crate::api::Attestation>>;
+    async fn fetch_attestations(
+        &self,
+        artifact: &ArtifactRef,
+    ) -> Result<Vec<crate::api::Attestation>>;
 
     /// Get the source type name for logging
     fn source_type(&self) -> &'static str;
