@@ -97,7 +97,7 @@ impl Verifier for CosignVerifier {
 
 async fn verify_keyless(
     bundle: &ParsedBundle,
-    artifact_digest: &str,
+    _artifact_digest: &str,
     policy: &Policy,
 ) -> Result<VerificationResult> {
     let mut result = VerificationResult {
@@ -114,7 +114,7 @@ async fn verify_keyless(
             && dsse_envelope.payload.is_empty()
         {
             // This is a traditional Cosign bundle, handle it specifically
-            if let Some(tlog_entries) = &bundle.tlog_entries {
+            if let Some(_tlog_entries) = &bundle.tlog_entries {
                 debug!("Verifying traditional Cosign bundle with tlog entries");
                 // For traditional Cosign bundles, the verification is mainly about checking
                 // that the artifact hash matches what's in the transparency log

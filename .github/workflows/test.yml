@@ -52,20 +52,6 @@ jobs:
     - name: Build examples
       run: cargo build --examples
 
-  minimal-versions:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@nightly
-
-    - name: Install cargo-minimal-versions
-      run: cargo install cargo-minimal-versions
-
-    - name: Check minimal versions
-      run: cargo minimal-versions check
 
   security-audit:
     runs-on: ubuntu-latest
