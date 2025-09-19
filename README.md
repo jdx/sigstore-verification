@@ -9,6 +9,29 @@ A Rust library for verifying software artifact signatures and attestations using
 - **SLSA Provenance**: Verify SLSA provenance with configurable security levels
 - **Rekor Transparency Log**: Full support for verifying inclusion proofs and signed entry timestamps
 - **Modular Architecture**: Extensible design with traits for sources and verifiers
+- **Configurable TLS**: Support for multiple TLS backends (native-tls, rustls)
+
+## TLS Configuration
+
+This library supports multiple TLS backends through Cargo features:
+
+```toml
+[dependencies]
+# Default: uses native-tls (OpenSSL/Secure Transport)
+sigstore-verification = "0.1.2"
+
+# Use rustls instead
+sigstore-verification = { version = "0.1.2", default-features = false, features = ["rustls"] }
+
+# Use rustls with native root certificates
+sigstore-verification = { version = "0.1.2", default-features = false, features = ["rustls-native-roots"] }
+```
+
+### Available TLS Backends
+
+- **`native-tls`** (default): Uses OpenSSL on Linux, Secure Transport on macOS, SChannel on Windows
+- **`rustls`**: Pure Rust TLS implementation with webpki-roots
+- **`rustls-native-roots`**: Pure Rust TLS implementation with system root certificates
 
 ## Architecture
 
