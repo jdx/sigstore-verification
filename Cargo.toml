@@ -5,6 +5,9 @@ edition = "2024"
 authors = ["Jeff Dickey (@jdx)"]
 license = "MIT"
 description = "Sigstore, Cosign, and SLSA attestation verification library"
+repository = "https://github.com/jdx/sigstore-verification"
+homepage = "https://github.com/jdx/sigstore-verification"
+documentation = "https://docs.rs/sigstore-verification"
 rust-version = "1.85"
 
 [dependencies]
