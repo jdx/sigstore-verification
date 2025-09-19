@@ -1,0 +1,157 @@
+use crate::api::{Attestation, SigstoreBundle, DsseEnvelope, Signature};
+use crate::sources::{ArtifactRef, AttestationSource};
+use crate::{AttestationError, Result};
+use async_trait::async_trait;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use std::path::{Path, PathBuf};
+use tokio::fs;
+
+/// File-based attestation source for loading attestations from local files
+pub struct FileSource {
+    /// Path to the attestation file or bundle
+    attestation_path: PathBuf,
+}
+
+impl FileSource {
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        Self {
+            attestation_path: path.as_ref().to_path_buf(),
+        }
+    }
+
+    /// Load a Sigstore bundle from a file
+    pub async fn load_bundle(&self) -> Result<serde_json::Value> {
+        let content = fs::read_to_string(&self.attestation_path)
+            .await
+            .map_err(AttestationError::Io)?;
+
+        serde_json::from_str(&content)
+            .map_err(AttestationError::Json)
+    }
+
+    /// Load a cosign signature from a .sig file
+    pub async fn load_signature(&self) -> Result<Vec<u8>> {
+        fs::read(&self.attestation_path)
+            .await
+            .map_err(AttestationError::Io)
+    }
+}
+
+#[async_trait]
+impl AttestationSource for FileSource {
+    async fn fetch_attestations(&self, _artifact: &ArtifactRef) -> Result<Vec<Attestation>> {
+        let content = fs::read_to_string(&self.attestation_path)
+            .await
+            .map_err(AttestationError::Io)?;
+
+        // Try to parse each line as JSON (JSONL format)
+        let mut attestations = Vec::new();
+
+        for line in content.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
+                // Check if this is a DSSE envelope (SLSA provenance format)
+                if let (Some(payload_type), Some(payload), Some(signatures)) = (
+                    json_value.get("payloadType"),
+                    json_value.get("payload"),
+                    json_value.get("signatures")
+                ) {
+                    if payload_type.as_str() == Some("application/vnd.in-toto+json") {
+                        // This is a DSSE envelope, parse it into a SigstoreBundle
+                        let mut parsed_signatures = Vec::new();
+                        if let Some(sig_array) = signatures.as_array() {
+                            for sig_obj in sig_array {
+                                let sig_string = sig_obj.get("sig")
+                                    .and_then(|s| s.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let keyid = sig_obj.get("keyid")
+                                    .and_then(|k| k.as_str())
+                                    .map(|s| s.to_string());
+
+                                parsed_signatures.push(Signature {
+                                    sig: sig_string,
+                                    keyid,
+                                });
+                            }
+                        }
+
+                        let bundle = SigstoreBundle {
+                            media_type: "application/vnd.in-toto+json".to_string(),
+                            dsse_envelope: DsseEnvelope {
+                                payload: payload.as_str().unwrap_or("").to_string(),
+                                payload_type: payload_type.as_str().unwrap_or("").to_string(),
+                                signatures: parsed_signatures,
+                            },
+                            verification_material: None, // SLSA files typically don't have this
+                        };
+
+                        let attestation = Attestation {
+                            bundle: Some(bundle),
+                            bundle_url: None,
+                        };
+                        attestations.push(attestation);
+                        continue;
+                    }
+                }
+
+                // Check if this is a simple in-toto statement (alternative format)
+                if let Some(type_field) = json_value.get("_type") {
+                    let type_str = type_field.as_str().unwrap_or("");
+                    if type_str.starts_with("https://in-toto.io/Statement/v") {
+                        // This is a raw SLSA provenance statement, wrap it in DSSE
+                        let bundle = SigstoreBundle {
+                            media_type: "application/vnd.in-toto+json".to_string(),
+                            dsse_envelope: DsseEnvelope {
+                                payload: BASE64.encode(serde_json::to_string(&json_value)?.as_bytes()),
+                                payload_type: "application/vnd.in-toto+json".to_string(),
+                                signatures: vec![Signature {
+                                    sig: "".to_string(), // Minimal signature for parsing
+                                    keyid: None,
+                                }],
+                            },
+                            verification_material: None,
+                        };
+
+                        let attestation = Attestation {
+                            bundle: Some(bundle),
+                            bundle_url: None,
+                        };
+                        attestations.push(attestation);
+                        continue;
+                    }
+                }
+
+                // Try to parse as an existing attestation format
+                if let Ok(attestation) = serde_json::from_value::<Attestation>(json_value.clone()) {
+                    attestations.push(attestation);
+                    continue;
+                }
+
+                // Try as a raw bundle format - convert JSON to SigstoreBundle
+                if let Ok(bundle) = serde_json::from_value::<SigstoreBundle>(json_value) {
+                    let attestation = Attestation {
+                        bundle: Some(bundle),
+                        bundle_url: None,
+                    };
+                    attestations.push(attestation);
+                }
+            }
+        }
+
+        if attestations.is_empty() {
+            return Err(AttestationError::Verification(
+                "File does not contain valid attestations or SLSA provenance".into()
+            ));
+        }
+
+        Ok(attestations)
+    }
+
+    fn source_type(&self) -> &'static str {
+        "File"
+    }
+}
