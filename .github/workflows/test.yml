@@ -26,6 +26,11 @@ jobs:
         toolchain: ${{ matrix.rust }}
         components: rustfmt, clippy
 
+    - name: Install mise
+      uses: jdx/mise-action@v2
+      with:
+        install: false
+
     - name: Cache dependencies
       uses: actions/cache@v4
       with:
@@ -37,48 +42,8 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
-    - name: Check formatting
-      run: cargo fmt --all -- --check
-
-    - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
-
-    - name: Build (default features - native-tls)
-      run: cargo build
-
-    - name: Run tests (default features - native-tls)
-      run: cargo test
-
-    - name: Build examples
-      run: cargo build --examples
-
-    - name: Build with rustls
-      run: cargo build --no-default-features --features rustls
-
-    - name: Build with rustls-native-roots
-      run: cargo build --no-default-features --features rustls-native-roots
-
-    - name: Test with rustls
-      run: cargo test --no-default-features --features rustls
-
-    - name: Test with rustls-native-roots
-      run: cargo test --no-default-features --features rustls-native-roots
-
-    - name: Verify no OpenSSL dependency with rustls
-      run: |
-        if cargo tree --no-default-features --features rustls -i openssl 2>&1 | grep -q "error: package ID specification"; then
-          echo "✓ rustls build has no OpenSSL dependency"
-        else
-          echo "ERROR: OpenSSL is still a dependency when using rustls feature!" && exit 1
-        fi
-
-    - name: Verify no OpenSSL dependency with rustls-native-roots
-      run: |
-        if cargo tree --no-default-features --features rustls-native-roots -i openssl 2>&1 | grep -q "error: package ID specification"; then
-          echo "✓ rustls-native-roots build has no OpenSSL dependency"
-        else
-          echo "ERROR: OpenSSL is still a dependency when using rustls-native-roots feature!" && exit 1
-        fi
+    - name: Run CI checks
+      run: mise run ci
 
 
   security-audit:

@@ -36,23 +36,11 @@ run = "cargo test --no-default-features --features rustls-native-roots"
 
 [tasks.verify-no-openssl-rustls]
 description = "Verify rustls doesn't depend on OpenSSL"
-run = '''
-if cargo tree --no-default-features --features rustls -i openssl 2>&1 | grep -q "error: package ID specification"; then
-  echo "✓ rustls build has no OpenSSL dependency"
-else
-  echo "ERROR: OpenSSL is still a dependency when using rustls feature!" && exit 1
-fi
-'''
+run = "bash scripts/verify-no-openssl.sh rustls"
 
 [tasks.verify-no-openssl-rustls-native]
 description = "Verify rustls-native-roots doesn't depend on OpenSSL"
-run = '''
-if cargo tree --no-default-features --features rustls-native-roots -i openssl 2>&1 | grep -q "error: package ID specification"; then
-  echo "✓ rustls-native-roots build has no OpenSSL dependency"
-else
-  echo "ERROR: OpenSSL is still a dependency when using rustls-native-roots feature!" && exit 1
-fi
-'''
+run = "bash scripts/verify-no-openssl.sh rustls-native-roots"
 
 [tasks.ci]
 description = "Run all CI checks locally"
