@@ -7,6 +7,9 @@ FEATURE="${1:-rustls-native-roots}"
 
 echo "Checking if OpenSSL is a dependency with feature: $FEATURE"
 
+# Disable color output to avoid ANSI codes interfering with grep
+export CARGO_TERM_COLOR=never
+
 # We expect this command to fail with "error: package ID specification" if openssl is not found (which is good)
 # Use || true to prevent set -e from exiting on the expected failure
 OUTPUT=$(cargo tree --no-default-features --features "$FEATURE" -i openssl 2>&1 || true)
