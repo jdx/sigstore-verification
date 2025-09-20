@@ -66,13 +66,19 @@ jobs:
 
     - name: Verify no OpenSSL dependency with rustls
       run: |
-        cargo tree --no-default-features --features rustls -i openssl 2>&1 | grep -q "no packages depend on" || \
-        (echo "ERROR: OpenSSL is still a dependency when using rustls feature!" && exit 1)
+        if cargo tree --no-default-features --features rustls -i openssl 2>&1 | grep -q "error: package ID specification"; then
+          echo "✓ rustls build has no OpenSSL dependency"
+        else
+          echo "ERROR: OpenSSL is still a dependency when using rustls feature!" && exit 1
+        fi
 
     - name: Verify no OpenSSL dependency with rustls-native-roots
       run: |
-        cargo tree --no-default-features --features rustls-native-roots -i openssl 2>&1 | grep -q "no packages depend on" || \
-        (echo "ERROR: OpenSSL is still a dependency when using rustls-native-roots feature!" && exit 1)
+        if cargo tree --no-default-features --features rustls-native-roots -i openssl 2>&1 | grep -q "error: package ID specification"; then
+          echo "✓ rustls-native-roots build has no OpenSSL dependency"
+        else
+          echo "ERROR: OpenSSL is still a dependency when using rustls-native-roots feature!" && exit 1
+        fi
 
 
   security-audit:
