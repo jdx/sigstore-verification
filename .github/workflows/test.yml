@@ -43,14 +43,36 @@ jobs:
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
 
-    - name: Build
+    - name: Build (default features - native-tls)
       run: cargo build
 
-    - name: Run tests
+    - name: Run tests (default features - native-tls)
       run: cargo test
 
     - name: Build examples
       run: cargo build --examples
+
+    - name: Build with rustls
+      run: cargo build --no-default-features --features rustls
+
+    - name: Build with rustls-native-roots
+      run: cargo build --no-default-features --features rustls-native-roots
+
+    - name: Test with rustls
+      run: cargo test --no-default-features --features rustls
+
+    - name: Test with rustls-native-roots
+      run: cargo test --no-default-features --features rustls-native-roots
+
+    - name: Verify no OpenSSL dependency with rustls
+      run: |
+        cargo tree --no-default-features --features rustls -i openssl 2>&1 | grep -q "no packages depend on" || \
+        (echo "ERROR: OpenSSL is still a dependency when using rustls feature!" && exit 1)
+
+    - name: Verify no OpenSSL dependency with rustls-native-roots
+      run: |
+        cargo tree --no-default-features --features rustls-native-roots -i openssl 2>&1 | grep -q "no packages depend on" || \
+        (echo "ERROR: OpenSSL is still a dependency when using rustls-native-roots feature!" && exit 1)
 
 
   security-audit:
