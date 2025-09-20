@@ -1,0 +1,70 @@
+[tasks.format]
+description = "Check code formatting"
+run = "cargo fmt --all -- --check"
+
+[tasks.lint]
+description = "Run clippy linting"
+run = "cargo clippy --all-targets --all-features -- -D warnings"
+
+[tasks.build]
+description = "Build with default features (native-tls)"
+run = "cargo build"
+
+[tasks.test]
+description = "Run tests with default features (native-tls)"
+run = "cargo test"
+
+[tasks.build-examples]
+description = "Build examples"
+run = "cargo build --examples"
+
+[tasks.build-rustls]
+description = "Build with rustls feature"
+run = "cargo build --no-default-features --features rustls"
+
+[tasks.build-rustls-native]
+description = "Build with rustls-native-roots feature"
+run = "cargo build --no-default-features --features rustls-native-roots"
+
+[tasks.test-rustls]
+description = "Test with rustls feature"
+run = "cargo test --no-default-features --features rustls"
+
+[tasks.test-rustls-native]
+description = "Test with rustls-native-roots feature"
+run = "cargo test --no-default-features --features rustls-native-roots"
+
+[tasks.verify-no-openssl-rustls]
+description = "Verify rustls doesn't depend on OpenSSL"
+run = "bash scripts/verify-no-openssl.sh rustls"
+
+[tasks.verify-no-openssl-rustls-native]
+description = "Verify rustls-native-roots doesn't depend on OpenSSL"
+run = "bash scripts/verify-no-openssl.sh rustls-native-roots"
+
+[tasks.ci]
+description = "Run all CI checks locally"
+depends = [
+  "format",
+  "lint",
+  "build",
+  "test",
+  "build-examples",
+  "build-rustls",
+  "build-rustls-native",
+  "test-rustls",
+  "test-rustls-native",
+  "verify-no-openssl-rustls",
+  "verify-no-openssl-rustls-native"
+]
+
+[tasks.ci-quick]
+description = "Run essential CI checks (faster)"
+depends = [
+  "format",
+  "build",
+  "test",
+  "build-rustls-native",
+  "test-rustls-native",
+  "verify-no-openssl-rustls-native"
+]
