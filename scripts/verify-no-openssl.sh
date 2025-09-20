@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 
 # Verify that OpenSSL is not a dependency when using rustls features
 
@@ -7,6 +7,8 @@ FEATURE="${1:-rustls-native-roots}"
 
 echo "Checking if OpenSSL is a dependency with feature: $FEATURE"
 
+# We expect this command to fail with "error: package ID specification" if openssl is not found (which is good)
+# Use || true to prevent set -e from exiting on the expected failure
 OUTPUT=$(cargo tree --no-default-features --features "$FEATURE" -i openssl 2>&1 || true)
 
 if echo "$OUTPUT" | grep -q "error: package ID specification"; then
