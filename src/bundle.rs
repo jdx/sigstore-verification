@@ -11,40 +11,63 @@ pub fn parse_bundle(attestation: &Attestation) -> Result<ParsedBundle> {
         .as_ref()
         .ok_or_else(|| AttestationError::Verification("No bundle found in attestation".into()))?;
 
-    // Check if this is a traditional Cosign bundle (empty payload in DSSE envelope, verification material contains the bundle)
-    if bundle.dsse_envelope.payload.is_empty()
-        && bundle.dsse_envelope.payload_type == "application/vnd.dev.sigstore.cosign"
-        && bundle.verification_material.is_some()
-    {
-        // Traditional Cosign bundle - extract what we can
-        let certificate = extract_certificate_from_bundle(attestation)?;
-        let tlog_entries = extract_tlog_entries_from_bundle(attestation)?;
+    // Extract certificate and tlog entries (common to all formats)
+    let certificate = extract_certificate_from_bundle(attestation)?;
+    let tlog_entries = extract_tlog_entries_from_bundle(attestation)?;
 
+    // Check if this is a message signature bundle (cosign v3 direct blob signing)
+    if let Some(message_signature) = &bundle.message_signature {
         return Ok(ParsedBundle {
-            payload: Vec::new(), // No SLSA payload for traditional Cosign bundles
-            dsse_envelope: Some(bundle.dsse_envelope.clone()),
+            payload: Vec::new(), // No SLSA payload for message signature bundles
+            dsse_envelope: None,
             certificate,
             media_type: bundle.media_type.clone(),
             tlog_entries,
+            message_signature: Some(crate::api::MessageSignature {
+                message_digest: crate::api::MessageDigest {
+                    algorithm: message_signature.message_digest.algorithm.clone(),
+                    digest: message_signature.message_digest.digest.clone(),
+                },
+                signature: message_signature.signature.clone(),
+            }),
         });
     }
 
-    // Standard DSSE envelope processing
-    let payload = decode_payload(&bundle.dsse_envelope.payload)?;
+    // Check if we have a DSSE envelope
+    if let Some(dsse_envelope) = &bundle.dsse_envelope {
+        // Check if this is a traditional Cosign bundle (empty payload in DSSE envelope, verification material contains the bundle)
+        if dsse_envelope.payload.is_empty()
+            && dsse_envelope.payload_type == "application/vnd.dev.sigstore.cosign"
+            && bundle.verification_material.is_some()
+        {
+            // Traditional Cosign bundle - extract what we can
+            return Ok(ParsedBundle {
+                payload: Vec::new(), // No SLSA payload for traditional Cosign bundles
+                dsse_envelope: Some(dsse_envelope.clone()),
+                certificate,
+                media_type: bundle.media_type.clone(),
+                tlog_entries,
+                message_signature: None,
+            });
+        }
 
-    // Extract certificate if present
-    let certificate = extract_certificate_from_bundle(attestation)?;
+        // Standard DSSE envelope processing
+        let payload = decode_payload(&dsse_envelope.payload)?;
 
-    // Extract tlog entries if present
-    let tlog_entries = extract_tlog_entries_from_bundle(attestation)?;
+        return Ok(ParsedBundle {
+            payload,
+            dsse_envelope: Some(dsse_envelope.clone()),
+            certificate,
+            media_type: bundle.media_type.clone(),
+            tlog_entries,
+            message_signature: None,
+        });
+    }
 
-    Ok(ParsedBundle {
-        payload,
-        dsse_envelope: Some(bundle.dsse_envelope.clone()),
-        certificate,
-        media_type: bundle.media_type.clone(),
-        tlog_entries,
-    })
+    // No valid format found
+    Err(AttestationError::Verification(
+        "Bundle has neither DSSE envelope nor message signature".into(),
+    ))
 }
 
 /// Decode base64-encoded payload
@@ -178,6 +201,8 @@ pub struct ParsedBundle {
     pub certificate: Option<String>,
     pub media_type: String,
     pub tlog_entries: Option<Vec<serde_json::Value>>,
+    /// Message signature for direct blob signing (cosign v3 format)
+    pub message_signature: Option<crate::api::MessageSignature>,
 }
 
 #[derive(Debug, Clone)]

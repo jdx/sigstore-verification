@@ -1,4 +1,4 @@
-use crate::api::{Attestation, DsseEnvelope, Signature, SigstoreBundle};
+use crate::api::{Attestation, DsseEnvelope, MessageDigest, MessageSignature, Signature, SigstoreBundle};
 use crate::sources::{ArtifactRef, AttestationSource};
 use crate::{AttestationError, Result};
 use async_trait::async_trait;
@@ -66,7 +66,49 @@ impl AttestationSource for FileSource {
                     "Successfully parsed JSON with keys: {:?}",
                     json_value.as_object().map(|o| o.keys().collect::<Vec<_>>())
                 );
-                // Check if this is a Sigstore Bundle v0.3 format
+                // Check if this is a Sigstore Bundle v0.3 format with messageSignature (cosign v3)
+                if let (Some(media_type), Some(message_signature)) =
+                    (json_value.get("mediaType"), json_value.get("messageSignature"))
+                {
+                    let media_type_str = media_type.as_str().unwrap_or("");
+                    if media_type_str.contains("sigstore.bundle") {
+                        // Parse messageSignature for direct blob signing
+                        if let (Some(message_digest), Some(signature)) = (
+                            message_signature.get("messageDigest"),
+                            message_signature.get("signature"),
+                        ) {
+                            if let (Some(algorithm), Some(digest)) = (
+                                message_digest.get("algorithm"),
+                                message_digest.get("digest"),
+                            ) {
+                                log::debug!("Found Sigstore Bundle v0.3 with messageSignature (cosign v3 format)");
+                                let bundle = SigstoreBundle {
+                                    media_type: media_type_str.to_string(),
+                                    dsse_envelope: None,
+                                    verification_material: json_value
+                                        .get("verificationMaterial")
+                                        .cloned(),
+                                    message_signature: Some(MessageSignature {
+                                        message_digest: MessageDigest {
+                                            algorithm: algorithm.as_str().unwrap_or("SHA2_256").to_string(),
+                                            digest: digest.as_str().unwrap_or("").to_string(),
+                                        },
+                                        signature: signature.as_str().unwrap_or("").to_string(),
+                                    }),
+                                };
+
+                                let attestation = Attestation {
+                                    bundle: Some(bundle),
+                                    bundle_url: None,
+                                };
+                                attestations.push(attestation);
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                // Check if this is a Sigstore Bundle v0.3 format with dsseEnvelope
                 if let (Some(media_type), Some(dsse_envelope)) =
                     (json_value.get("mediaType"), json_value.get("dsseEnvelope"))
                 {
@@ -101,17 +143,18 @@ impl AttestationSource for FileSource {
 
                                 let bundle = SigstoreBundle {
                                     media_type: media_type.as_str().unwrap_or("").to_string(),
-                                    dsse_envelope: DsseEnvelope {
+                                    dsse_envelope: Some(DsseEnvelope {
                                         payload: payload.as_str().unwrap_or("").to_string(),
                                         payload_type: payload_type
                                             .as_str()
                                             .unwrap_or("")
                                             .to_string(),
                                         signatures: parsed_signatures,
-                                    },
+                                    }),
                                     verification_material: json_value
                                         .get("verificationMaterial")
                                         .cloned(),
+                                    message_signature: None,
                                 };
 
                                 let attestation = Attestation {
@@ -155,12 +198,13 @@ impl AttestationSource for FileSource {
 
                         let bundle = SigstoreBundle {
                             media_type: "application/vnd.in-toto+json".to_string(),
-                            dsse_envelope: DsseEnvelope {
+                            dsse_envelope: Some(DsseEnvelope {
                                 payload: payload.as_str().unwrap_or("").to_string(),
                                 payload_type: payload_type.as_str().unwrap_or("").to_string(),
                                 signatures: parsed_signatures,
-                            },
+                            }),
                             verification_material: None, // SLSA files typically don't have this
+                            message_signature: None,
                         };
 
                         let attestation = Attestation {
@@ -179,7 +223,7 @@ impl AttestationSource for FileSource {
                         // This is a raw SLSA provenance statement, wrap it in DSSE
                         let bundle = SigstoreBundle {
                             media_type: "application/vnd.in-toto+json".to_string(),
-                            dsse_envelope: DsseEnvelope {
+                            dsse_envelope: Some(DsseEnvelope {
                                 payload: BASE64
                                     .encode(serde_json::to_string(&json_value)?.as_bytes()),
                                 payload_type: "application/vnd.in-toto+json".to_string(),
@@ -187,8 +231,9 @@ impl AttestationSource for FileSource {
                                     sig: "".to_string(), // Minimal signature for parsing
                                     keyid: None,
                                 }],
-                            },
+                            }),
                             verification_material: None,
+                            message_signature: None,
                         };
 
                         let attestation = Attestation {
@@ -213,15 +258,16 @@ impl AttestationSource for FileSource {
                     let bundle = SigstoreBundle {
                         media_type: "application/vnd.dev.sigstore.bundle+json;version=0.1"
                             .to_string(),
-                        dsse_envelope: DsseEnvelope {
+                        dsse_envelope: Some(DsseEnvelope {
                             payload: "".to_string(), // Empty payload for traditional Cosign bundles
                             payload_type: "application/vnd.dev.sigstore.cosign".to_string(),
                             signatures: vec![Signature {
                                 sig: "".to_string(), // Signature is in the rekor bundle
                                 keyid: None,
                             }],
-                        },
+                        }),
                         verification_material: Some(json_value.clone()), // Store the entire Cosign bundle as verification material
+                        message_signature: None,
                     };
 
                     let attestation = Attestation {
