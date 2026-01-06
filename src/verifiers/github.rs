@@ -75,7 +75,7 @@ impl Verifier for GitHubVerifier {
 
         Ok(VerificationResult {
             success: true,
-            slsa_level: Some(3), // GitHub Actions attestations are SLSA L3
+            slsa_level: Some(2), // GitHub artifact attestations are SLSA L2, possibly L3 depending on workflow setup
             certificate_identity: cert_info.as_ref().and_then(|ci| ci.repository.clone()),
             builder_identity: cert_info.as_ref().and_then(|ci| ci.workflow_ref.clone()),
             messages: vec![
