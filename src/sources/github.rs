@@ -3,7 +3,7 @@ use crate::api::{Attestation, AttestationClient, FetchParams};
 use crate::sources::{ArtifactRef, AttestationSource};
 use async_trait::async_trait;
 
-/// GitHub attestation source for fetching attestations from GitHub's API
+/// GitHub source for fetching artifact attestations from GitHub's API
 pub struct GitHubSource {
     client: AttestationClient,
     owner: String,
