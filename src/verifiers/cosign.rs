@@ -129,7 +129,10 @@ async fn verify_keyless(
             )));
         }
 
-        debug!("Artifact digest verified: {} ({})", bundle_digest_hex, bundle_algorithm);
+        debug!(
+            "Artifact digest verified: {} ({})",
+            bundle_digest_hex, bundle_algorithm
+        );
 
         // Check that we have tlog entries for verification
         if let Some(tlog_entries) = &bundle.tlog_entries {

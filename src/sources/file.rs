@@ -1,4 +1,6 @@
-use crate::api::{Attestation, DsseEnvelope, MessageDigest, MessageSignature, Signature, SigstoreBundle};
+use crate::api::{
+    Attestation, DsseEnvelope, MessageDigest, MessageSignature, Signature, SigstoreBundle,
+};
 use crate::sources::{ArtifactRef, AttestationSource};
 use crate::{AttestationError, Result};
 use async_trait::async_trait;
@@ -67,9 +69,10 @@ impl AttestationSource for FileSource {
                     json_value.as_object().map(|o| o.keys().collect::<Vec<_>>())
                 );
                 // Check if this is a Sigstore Bundle v0.3 format with messageSignature (cosign v3)
-                if let (Some(media_type), Some(message_signature)) =
-                    (json_value.get("mediaType"), json_value.get("messageSignature"))
-                {
+                if let (Some(media_type), Some(message_signature)) = (
+                    json_value.get("mediaType"),
+                    json_value.get("messageSignature"),
+                ) {
                     let media_type_str = media_type.as_str().unwrap_or("");
                     if media_type_str.contains("sigstore.bundle") {
                         // Parse messageSignature for direct blob signing
@@ -81,7 +84,9 @@ impl AttestationSource for FileSource {
                                 message_digest.get("algorithm"),
                                 message_digest.get("digest"),
                             ) {
-                                log::debug!("Found Sigstore Bundle v0.3 with messageSignature (cosign v3 format)");
+                                log::debug!(
+                                    "Found Sigstore Bundle v0.3 with messageSignature (cosign v3 format)"
+                                );
                                 let bundle = SigstoreBundle {
                                     media_type: media_type_str.to_string(),
                                     dsse_envelope: None,
@@ -90,7 +95,10 @@ impl AttestationSource for FileSource {
                                         .cloned(),
                                     message_signature: Some(MessageSignature {
                                         message_digest: MessageDigest {
-                                            algorithm: algorithm.as_str().unwrap_or("SHA2_256").to_string(),
+                                            algorithm: algorithm
+                                                .as_str()
+                                                .unwrap_or("SHA2_256")
+                                                .to_string(),
                                             digest: digest.as_str().unwrap_or("").to_string(),
                                         },
                                         signature: signature.as_str().unwrap_or("").to_string(),
