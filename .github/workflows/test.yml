@@ -19,7 +19,7 @@ jobs:
         rust: [stable, beta, nightly]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -28,13 +28,13 @@ jobs:
         components: rustfmt, clippy
 
     - name: Cache Rust dependencies
-      uses: Swatinem/rust-cache@v2
+      uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
       with:
         cache-on-failure: true
         save-if: always
 
     - name: Install mise
-      uses: jdx/mise-action@v2
+      uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
 
     - name: Run CI checks
       run: mise run ci
@@ -44,9 +44,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
     - name: Security audit
-      uses: rustsec/audit-check@v1.4.1
+      uses: rustsec/audit-check@dd51754d4e59da7395a4cd9b593f0ff2d61a9b95 # v1.4.1
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
