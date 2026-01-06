@@ -12,7 +12,7 @@ rust-version = "1.85"
 
 [dependencies]
 async-trait = "0.1"
-reqwest = { version = "0.13", default-features = false, features = ["json"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "query"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
@@ -46,10 +46,10 @@ native-tls = [
     "sigstore/native-tls",
 ]
 rustls = [
-    "reqwest/rustls-tls",
+    "reqwest/rustls",
     "sigstore/rustls-tls",
 ]
 rustls-native-roots = [
-    "reqwest/rustls-tls-native-roots",
+    "reqwest/rustls",
     "sigstore/rustls-tls-native-roots",
 ]
