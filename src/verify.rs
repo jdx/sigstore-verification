@@ -868,7 +868,7 @@ fn verify_signed_entry_timestamp(
 
     // Try to verify with each Rekor public key
     let mut verification_succeeded = false;
-    for rekor_key in &rekor_keys {
+    for rekor_key in rekor_keys.values() {
         // The rekor_key is a byte slice containing the public key
         if verify_signature_with_public_key(rekor_key, &signature_bytes, &message_hash).is_ok() {
             verification_succeeded = true;
