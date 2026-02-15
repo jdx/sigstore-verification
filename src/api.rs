@@ -148,7 +148,7 @@ impl AttestationClient {
                         .headers()
                         .get(reqwest::header::CONTENT_TYPE)
                         .and_then(|v| v.to_str().ok())
-                        .map_or(false, |s| s == "application/x-snappy")
+                        == Some("application/x-snappy")
                     {
                         let bytes = bundle_response.bytes().await?;
                         let decompressed = decompress_snappy(&bytes)?;
