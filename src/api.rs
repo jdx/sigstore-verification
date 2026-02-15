@@ -36,9 +36,25 @@ pub struct SigstoreBundle {
     #[serde(rename = "mediaType")]
     pub media_type: String,
     #[serde(rename = "dsseEnvelope")]
-    pub dsse_envelope: DsseEnvelope,
+    pub dsse_envelope: Option<DsseEnvelope>,
     #[serde(rename = "verificationMaterial")]
     pub verification_material: Option<serde_json::Value>,
+    /// Message signature for direct blob signing (cosign v3 format)
+    #[serde(rename = "messageSignature")]
+    pub message_signature: Option<MessageSignature>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MessageSignature {
+    #[serde(rename = "messageDigest")]
+    pub message_digest: MessageDigest,
+    pub signature: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MessageDigest {
+    pub algorithm: String,
+    pub digest: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]

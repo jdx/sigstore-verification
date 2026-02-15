@@ -11,10 +11,10 @@ use std::path::Path;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Example: Verify a GitHub attestation which includes Rekor transparency log entries
+    // Example: Verify a GitHub artifact attestation which includes Rekor transparency log entries
 
     println!("🔍 Rekor Transparency Log Verification Example\n");
-    println!("When verifying GitHub attestations, the library automatically:");
+    println!("When verifying GitHub artifact attestations, the library automatically:");
     println!("1. Extracts tlog entries from the verification material");
     println!("2. Verifies the Merkle tree inclusion proof");
     println!("3. Validates the Signed Entry Timestamp (SET)");
@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
     // Example artifact path (would be a real file in practice)
     let artifact_path = Path::new("example_artifact.tar.gz");
 
-    // For GitHub attestations with Rekor entries
+    // For GitHub artifact attestations with Rekor entries
     let owner = "example-org";
     let repo = "example-repo";
 

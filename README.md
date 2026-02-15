@@ -47,7 +47,7 @@ sigstore-verification = { version = "0.1.2", default-features = false, features 
 
 ## Usage
 
-### GitHub Attestations
+### GitHub Artifact Attestations
 ```rust
 use sigstore_verification::verify_github_attestation;
 

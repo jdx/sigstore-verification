@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use log::debug;
 use std::path::Path;
 
-/// GitHub Actions attestation verifier
-/// Specializes in verifying GitHub-generated attestations with workflow identity
+/// GitHub artifact attestation verifier
+/// Specializes in verifying GitHub-generated artifact attestations with workflow identity
 pub struct GitHubVerifier {
     /// Expected repository (e.g., "owner/repo")
     pub repository: Option<String>,
@@ -48,7 +48,7 @@ impl Verifier for GitHubVerifier {
         policy: &Policy,
     ) -> Result<VerificationResult> {
         debug!(
-            "Starting GitHub attestation verification for {:?}",
+            "Starting GitHub artifact attestation verification for {:?}",
             artifact_path
         );
 
@@ -75,11 +75,11 @@ impl Verifier for GitHubVerifier {
 
         Ok(VerificationResult {
             success: true,
-            slsa_level: Some(3), // GitHub Actions attestations are SLSA L3
+            slsa_level: Some(2), // GitHub artifact attestations are SLSA L2, possibly L3 depending on workflow setup
             certificate_identity: cert_info.as_ref().and_then(|ci| ci.repository.clone()),
             builder_identity: cert_info.as_ref().and_then(|ci| ci.workflow_ref.clone()),
             messages: vec![
-                "GitHub attestation verification successful".to_string(),
+                "GitHub artifact attestation verification successful".to_string(),
                 format!("Workflow: {}", expected_workflow.unwrap_or("any")),
             ],
         })
