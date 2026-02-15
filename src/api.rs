@@ -1,4 +1,5 @@
 use crate::{AttestationError, Result};
+use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue, USER_AGENT};
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +10,7 @@ const USER_AGENT_VALUE: &str = "mise-attestation/0.1.0";
 pub struct AttestationClient {
     client: reqwest::Client,
     base_url: String,
+    github_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -72,18 +74,9 @@ pub struct Signature {
 }
 
 impl AttestationClient {
-    pub fn new(token: Option<&str>) -> Result<Self> {
+    pub fn new(github_token: Option<&str>) -> Result<Self> {
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static(USER_AGENT_VALUE));
-
-        if let Some(token) = token {
-            let auth_value = format!("Bearer {}", token);
-            headers.insert(
-                AUTHORIZATION,
-                HeaderValue::from_str(&auth_value)
-                    .map_err(|e| AttestationError::Api(e.to_string()))?,
-            );
-        }
 
         let client = reqwest::Client::builder()
             .default_headers(headers)
@@ -92,7 +85,27 @@ impl AttestationClient {
         Ok(Self {
             client,
             base_url: GITHUB_API_URL.to_string(),
+            github_token: github_token.map(|s| s.to_string()),
         })
+    }
+
+    fn github_headers(&self, url: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        if let Ok(url) = Url::parse(url) {
+            if url.host_str() == Some("api.github.com") {
+                if let Some(token) = &self.github_token {
+                    headers.insert(
+                        AUTHORIZATION,
+                        HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),
+                    );
+                }
+                headers.insert(
+                    "x-github-api-version",
+                    HeaderValue::from_static("2022-11-28"),
+                );
+            }
+        }
+        headers
     }
 
     pub async fn fetch_attestations(&self, params: FetchParams) -> Result<Vec<Attestation>> {
@@ -113,7 +126,13 @@ impl AttestationClient {
             query_params.push(("predicate_type", predicate_type.clone()));
         }
 
-        let response = self.client.get(&url).query(&query_params).send().await?;
+        let response = self
+            .client
+            .get(&url)
+            .headers(self.github_headers(&url))
+            .query(&query_params)
+            .send()
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -142,7 +161,12 @@ impl AttestationClient {
                 attestations.push(att);
             } else if let Some(bundle_url) = &att.bundle_url {
                 // Download the bundle
-                let bundle_response = self.client.get(bundle_url).send().await?;
+                let bundle_response = self
+                    .client
+                    .get(bundle_url)
+                    .headers(self.github_headers(bundle_url))
+                    .send()
+                    .await?;
                 if bundle_response.status().is_success() {
                     let bundle: SigstoreBundle = bundle_response.json().await?;
                     attestations.push(Attestation {
