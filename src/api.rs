@@ -89,14 +89,15 @@ impl AttestationClient {
         })
     }
 
-    fn github_headers(&self, url: &str) -> HeaderMap {
+    fn github_headers(&self, url: &str) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         if let Ok(url) = Url::parse(url) {
             if url.host_str() == Some("api.github.com") {
                 if let Some(token) = &self.github_token {
                     headers.insert(
                         AUTHORIZATION,
-                        HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),
+                        HeaderValue::from_str(&format!("Bearer {}", token))
+                            .map_err(|e| AttestationError::Api(e.to_string()))?,
                     );
                 }
                 headers.insert(
@@ -105,7 +106,7 @@ impl AttestationClient {
                 );
             }
         }
-        headers
+        Ok(headers)
     }
 
     pub async fn fetch_attestations(&self, params: FetchParams) -> Result<Vec<Attestation>> {
@@ -129,7 +130,7 @@ impl AttestationClient {
         let response = self
             .client
             .get(&url)
-            .headers(self.github_headers(&url))
+            .headers(self.github_headers(&url)?)
             .query(&query_params)
             .send()
             .await?;
@@ -164,7 +165,7 @@ impl AttestationClient {
                 let bundle_response = self
                     .client
                     .get(bundle_url)
-                    .headers(self.github_headers(bundle_url))
+                    .headers(self.github_headers(bundle_url)?)
                     .send()
                     .await?;
                 if bundle_response.status().is_success() {
