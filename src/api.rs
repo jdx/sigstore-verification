@@ -128,12 +128,11 @@ impl AttestationClient {
                 // Download the bundle
                 let bundle_response = self.client.get(bundle_url).send().await?;
                 if bundle_response.status().is_success() {
-                    let headers = bundle_response.headers().clone();
-                    let bundle: SigstoreBundle = if headers
-                        .get("content-type")
-                        .and_then(|h| h.to_str().ok())
-                        .map(|s| s.contains("application/x-snappy"))
-                        .unwrap_or(false)
+                    let bundle: SigstoreBundle = if bundle_response
+                        .headers()
+                        .get(reqwest::header::CONTENT_TYPE)
+                        .and_then(|v| v.to_str().ok())
+                        .map_or(false, |s| s.contains("application/x-snappy"))
                     {
                         let bytes = bundle_response.bytes().await?;
                         let decompressed = decompress_snappy(&bytes)?;
