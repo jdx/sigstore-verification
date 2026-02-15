@@ -128,7 +128,20 @@ impl AttestationClient {
                 // Download the bundle
                 let bundle_response = self.client.get(bundle_url).send().await?;
                 if bundle_response.status().is_success() {
-                    let bundle: SigstoreBundle = bundle_response.json().await?;
+                    let headers = bundle_response.headers().clone();
+                    let bundle: SigstoreBundle = if headers
+                        .get("content-type")
+                        .and_then(|h| h.to_str().ok())
+                        .map(|s| s.contains("application/x-snappy"))
+                        .unwrap_or(false)
+                    {
+                        let bytes = bundle_response.bytes().await?;
+                        let decompressed = decompress_snappy(&bytes)?;
+                        serde_json::from_slice(&decompressed)?
+                    } else {
+                        bundle_response.json().await?
+                    };
+
                     attestations.push(Attestation {
                         bundle: Some(bundle),
                         bundle_url: att.bundle_url.clone(),
@@ -139,4 +152,11 @@ impl AttestationClient {
 
         Ok(attestations)
     }
+}
+
+fn decompress_snappy(bytes: &[u8]) -> Result<Vec<u8>> {
+    let mut decoder = snap::raw::Decoder::new();
+    decoder
+        .decompress_vec(bytes)
+        .map_err(|e| AttestationError::Api(format!("Snappy decompression failed: {}", e)))
 }
