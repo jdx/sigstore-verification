@@ -31,6 +31,7 @@ signature = "2"
 
 # Sigstore dependencies for verification
 sigstore = { version = "0.13", default-features = false, features = ["bundle", "sigstore-trust-root", "cosign", "rekor", "fulcio", "ring"] }
+snap = "1"
 
 [dev-dependencies]
 tokio-test = "0.4"
