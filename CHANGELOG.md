@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2](https://github.com/jdx/sigstore-verification/compare/v0.2.1...v0.2.2) - 2026-02-20
+
+### Fixed
+
+- generate Cargo.lock before security audit ([#24](https://github.com/jdx/sigstore-verification/pull/24))
+
+### Other
+
+- *(deps)* pin dependencies ([#26](https://github.com/jdx/sigstore-verification/pull/26))
+
 ## [0.2.1](https://github.com/jdx/sigstore-verification/compare/v0.2.0...v0.2.1) - 2026-02-15
 
 ### Added
