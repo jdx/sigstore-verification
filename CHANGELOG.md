@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2](https://github.com/jdx/sigstore-verification/compare/v0.2.1...v0.2.2) - 2026-04-04
+
+### Added
+
+- add builder pattern for customizable GitHub API URL ([#36](https://github.com/jdx/sigstore-verification/pull/36))
+
+### Fixed
+
+- generate Cargo.lock before security audit ([#24](https://github.com/jdx/sigstore-verification/pull/24))
+
+### Other
+
+- *(deps)* pin dtolnay/rust-toolchain action to 29eef33 ([#33](https://github.com/jdx/sigstore-verification/pull/33))
+- *(deps)* update jdx/mise-action digest to 1648a78 ([#34](https://github.com/jdx/sigstore-verification/pull/34))
+- *(deps)* update jdx/mise-action action to v4 ([#31](https://github.com/jdx/sigstore-verification/pull/31))
+- *(deps)* update swatinem/rust-cache digest to e18b497 ([#30](https://github.com/jdx/sigstore-verification/pull/30))
+- *(deps)* update release-plz/action digest to 1528104 ([#29](https://github.com/jdx/sigstore-verification/pull/29))
+- *(deps)* update jdx/mise-action digest to 5228313 ([#28](https://github.com/jdx/sigstore-verification/pull/28))
+- *(deps)* update jdx/mise-action digest to e79ddf6 ([#27](https://github.com/jdx/sigstore-verification/pull/27))
+- *(deps)* pin dependencies ([#26](https://github.com/jdx/sigstore-verification/pull/26))
+
 ## [0.2.1](https://github.com/jdx/sigstore-verification/compare/v0.2.0...v0.2.1) - 2026-02-15
 
 ### Added
