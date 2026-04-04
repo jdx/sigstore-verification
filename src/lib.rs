@@ -8,7 +8,10 @@ pub mod verifiers;
 pub mod verify;
 
 // Re-export commonly used types
-pub use api::{Attestation, AttestationClient, FetchParams, MessageDigest, MessageSignature};
+pub use api::{
+    Attestation, AttestationClient, AttestationClientBuilder, FetchParams, MessageDigest,
+    MessageSignature,
+};
 pub use bundle::{ParsedBundle, SlsaProvenance};
 pub use sources::{ArtifactRef, AttestationSource};
 pub use verifiers::{Policy, VerificationResult, Verifier};

@@ -1,5 +1,4 @@
 use crate::{AttestationError, Result};
-use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue, USER_AGENT};
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +10,39 @@ pub struct AttestationClient {
     client: reqwest::Client,
     base_url: String,
     github_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AttestationClientBuilder {
+    base_url: Option<String>,
+    github_token: Option<String>,
+}
+
+impl AttestationClientBuilder {
+    pub fn base_url(mut self, url: &str) -> Self {
+        self.base_url = Some(url.trim_end_matches('/').to_string());
+        self
+    }
+
+    pub fn github_token(mut self, token: &str) -> Self {
+        self.github_token = Some(token.to_string());
+        self
+    }
+
+    pub fn build(self) -> Result<AttestationClient> {
+        let mut headers = HeaderMap::new();
+        headers.insert(USER_AGENT, HeaderValue::from_static(USER_AGENT_VALUE));
+
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?;
+
+        Ok(AttestationClient {
+            client,
+            base_url: self.base_url.unwrap_or_else(|| GITHUB_API_URL.to_string()),
+            github_token: self.github_token,
+        })
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -75,36 +107,32 @@ pub struct Signature {
 
 impl AttestationClient {
     pub fn new(github_token: Option<&str>) -> Result<Self> {
-        let mut headers = HeaderMap::new();
-        headers.insert(USER_AGENT, HeaderValue::from_static(USER_AGENT_VALUE));
+        let mut builder = Self::builder();
+        if let Some(token) = github_token {
+            builder = builder.github_token(token);
+        }
+        builder.build()
+    }
 
-        let client = reqwest::Client::builder()
-            .default_headers(headers)
-            .build()?;
-
-        Ok(Self {
-            client,
-            base_url: GITHUB_API_URL.to_string(),
-            github_token: github_token.map(|s| s.to_string()),
-        })
+    pub fn builder() -> AttestationClientBuilder {
+        AttestationClientBuilder::default()
     }
 
     fn github_headers(&self, url: &str) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
-        if let Ok(url) = Url::parse(url) {
-            if url.host_str() == Some("api.github.com") {
-                if let Some(token) = &self.github_token {
-                    headers.insert(
-                        AUTHORIZATION,
-                        HeaderValue::from_str(&format!("Bearer {}", token))
-                            .map_err(|e| AttestationError::Api(e.to_string()))?,
-                    );
-                }
+        let base_with_slash = format!("{}/", self.base_url);
+        if url.starts_with(&base_with_slash) || url == self.base_url {
+            if let Some(token) = &self.github_token {
                 headers.insert(
-                    "x-github-api-version",
-                    HeaderValue::from_static("2022-11-28"),
+                    AUTHORIZATION,
+                    HeaderValue::from_str(&format!("Bearer {}", token))
+                        .map_err(|e| AttestationError::Api(e.to_string()))?,
                 );
             }
+            headers.insert(
+                "x-github-api-version",
+                HeaderValue::from_static("2022-11-28"),
+            );
         }
         Ok(headers)
     }
