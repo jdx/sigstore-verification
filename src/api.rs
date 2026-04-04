@@ -120,7 +120,8 @@ impl AttestationClient {
 
     fn github_headers(&self, url: &str) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
-        if url.starts_with(&self.base_url) {
+        let base_with_slash = format!("{}/", self.base_url);
+        if url.starts_with(&base_with_slash) || url == self.base_url {
             if let Some(token) = &self.github_token {
                 headers.insert(
                     AUTHORIZATION,
