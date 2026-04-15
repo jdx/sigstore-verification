@@ -119,10 +119,12 @@ async fn verify_single_attestation(
             }
         }
 
-        // Verify issuer is from sigstore
-        if !cert_info.issuer.to_lowercase().contains("sigstore") {
+        // Verify issuer is from Sigstore's Fulcio CA. Current GitHub
+        // attestation bundles can report the issuer CN as "Fulcio
+        // Intermediate l1", while older bundles included "sigstore".
+        if !is_fulcio_issuer(&cert_info.issuer) {
             return Err(AttestationError::Verification(format!(
-                "Invalid certificate issuer: expected sigstore, got '{}'",
+                "Invalid certificate issuer: expected Sigstore Fulcio, got '{}'",
                 cert_info.issuer
             )));
         }
@@ -261,6 +263,8 @@ pub fn verify_certificate(cert_pem: &str) -> Result<CertificateInfo> {
                                         .to_string(),
                                 );
                             }
+                        } else if uri_str.starts_with("https://dotcom.releases.github.com/") {
+                            repository = Some("dotcom.releases.github.com".to_string());
                         }
                     }
                 }
@@ -347,10 +351,11 @@ async fn verify_sigstore_bundle(bundle: &ParsedBundle) -> Result<()> {
     // Parse and validate certificate
     let cert_info = verify_certificate(cert_pem)?;
 
-    // Validate that this is a GitHub Actions certificate from Sigstore
-    if !cert_info.issuer.to_lowercase().contains("sigstore") {
+    // Validate that this is a GitHub Actions certificate from Sigstore's
+    // Fulcio CA.
+    if !is_fulcio_issuer(&cert_info.issuer) {
         return Err(AttestationError::Verification(format!(
-            "Invalid issuer: expected sigstore, got '{}'",
+            "Invalid issuer: expected Sigstore Fulcio, got '{}'",
             cert_info.issuer
         )));
     }
@@ -435,16 +440,21 @@ fn verify_certificate_chain<T: CosignCapabilities>(
 
     // Verify the certificate was issued by Fulcio
     // This is a simplified check - full verification would build the complete chain
-    let mut valid_chain = false;
-    for _fulcio_cert in fulcio_certs {
-        // Check if the certificate issuer matches any Fulcio CA
-        if cert.issuer().to_string().contains("sigstore") {
-            valid_chain = true;
-            break;
-        }
+    if fulcio_certs.is_empty() {
+        return Err(AttestationError::Verification(
+            "No Fulcio certificates in trust root".into(),
+        ));
     }
 
-    if !valid_chain {
+    // Check if the certificate issuer matches a Fulcio CA name. This is a
+    // simplified check - full verification would build the complete chain.
+    let issuer_cn = cert
+        .issuer()
+        .iter_common_name()
+        .next()
+        .and_then(|cn| cn.as_str().ok())
+        .unwrap_or("");
+    if !is_fulcio_issuer(issuer_cn) {
         return Err(AttestationError::Verification(
             "Certificate not issued by Fulcio".into(),
         ));
@@ -452,6 +462,13 @@ fn verify_certificate_chain<T: CosignCapabilities>(
 
     debug!("Certificate chain verified against Fulcio roots");
     Ok(())
+}
+
+fn is_fulcio_issuer(issuer: &str) -> bool {
+    let issuer = issuer.to_lowercase();
+    issuer.contains("sigstore")
+        || issuer == "fulcio root ca"
+        || issuer.starts_with("fulcio intermediate ")
 }
 
 /// Verify the DSSE signature
@@ -935,13 +952,86 @@ fn verify_basic_bundle_structure(
         }
     }
 
-    // Ensure this is a GitHub Actions certificate
-    if cert_info.workflow_ref.is_none() {
+    if !has_github_certificate_identity(cert_info) {
         return Err(AttestationError::Verification(
-            "Certificate does not contain GitHub workflow information".into(),
+            "Certificate does not contain GitHub identity information".into(),
         ));
     }
 
     debug!("Basic Sigstore bundle validation completed");
     Ok(())
+}
+
+fn has_github_certificate_identity(cert_info: &CertificateInfo) -> bool {
+    cert_info.workflow_ref.is_some()
+        || cert_info
+            .repository
+            .as_deref()
+            .is_some_and(|repo| repo == "dotcom.releases.github.com" || repo.contains('/'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CertificateInfo, has_github_certificate_identity, is_fulcio_issuer};
+
+    fn cert_info(workflow_ref: Option<&str>, repository: Option<&str>) -> CertificateInfo {
+        CertificateInfo {
+            workflow_ref: workflow_ref.map(str::to_string),
+            repository: repository.map(str::to_string),
+            issuer: "Fulcio Intermediate l1".to_string(),
+            not_before: None,
+            not_after: None,
+        }
+    }
+
+    #[test]
+    fn recognizes_sigstore_issuer() {
+        assert!(is_fulcio_issuer("Sigstore Intermediate"));
+    }
+
+    #[test]
+    fn recognizes_fulcio_issuer() {
+        assert!(is_fulcio_issuer("Fulcio Intermediate l1"));
+    }
+
+    #[test]
+    fn rejects_embedded_fulcio_issuer() {
+        assert!(!is_fulcio_issuer("notfulcio-corp"));
+        assert!(!is_fulcio_issuer("CN=fulcio.attacker.example"));
+    }
+
+    #[test]
+    fn rejects_unrelated_issuer() {
+        assert!(!is_fulcio_issuer("Example CA"));
+    }
+
+    #[test]
+    fn accepts_workflow_identity() {
+        let info = cert_info(Some("release.yml"), None);
+        assert!(has_github_certificate_identity(&info));
+    }
+
+    #[test]
+    fn accepts_dotcom_releases_identity() {
+        let info = cert_info(None, Some("dotcom.releases.github.com"));
+        assert!(has_github_certificate_identity(&info));
+    }
+
+    #[test]
+    fn accepts_owner_repo_identity() {
+        let info = cert_info(None, Some("owner/repo"));
+        assert!(has_github_certificate_identity(&info));
+    }
+
+    #[test]
+    fn rejects_identity_with_no_slash_repo() {
+        let info = cert_info(None, Some("someorg"));
+        assert!(!has_github_certificate_identity(&info));
+    }
+
+    #[test]
+    fn rejects_missing_github_identity() {
+        let info = cert_info(None, None);
+        assert!(!has_github_certificate_identity(&info));
+    }
 }
