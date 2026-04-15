@@ -142,13 +142,16 @@ pub async fn verify_github_attestation(
     // Create API client
     let client = AttestationClient::new(token)?;
 
-    // Fetch attestations from GitHub
+    // Fetch attestations from GitHub. Don't filter by predicate type — some
+    // projects publish non-SLSA attestations (e.g. SPDX SBOM), and filtering
+    // would hide them even though they are still valid sigstore bundles we
+    // can verify via certificate + DSSE signature.
     let params = FetchParams {
         owner: owner.to_string(),
         repo: Some(format!("{}/{}", owner, repo)),
         digest: format!("sha256:{}", digest),
         limit: 30,
-        predicate_type: Some("https://slsa.dev/provenance/v1".to_string()),
+        predicate_type: None,
     };
 
     let attestations = client.fetch_attestations(params).await?;

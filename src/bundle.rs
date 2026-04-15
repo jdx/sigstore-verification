@@ -145,19 +145,18 @@ pub fn parse_slsa_provenance(payload: &[u8]) -> Result<SlsaProvenance> {
         .and_then(|v| v.as_str())
         .ok_or_else(|| AttestationError::Verification("Missing predicateType".into()))?;
 
-    if !predicate_type.starts_with("https://slsa.dev/provenance/") {
-        return Err(AttestationError::Verification(format!(
-            "Not a SLSA provenance statement: {}",
-            predicate_type
-        )));
-    }
-
-    // Extract workflow information from predicate
-    let predicate = statement
-        .get("predicate")
-        .ok_or_else(|| AttestationError::Verification("Missing predicate".into()))?;
-
-    let workflow_ref = extract_workflow_ref(predicate)?;
+    // For SLSA provenance statements, extract workflow info from the predicate.
+    // For other attestation types (e.g. SPDX SBOM), the bundle is still a
+    // valid sigstore attestation — we just don't have workflow metadata from
+    // the predicate and will rely on the certificate for identity checks.
+    let workflow_ref = if predicate_type.starts_with("https://slsa.dev/provenance/") {
+        let predicate = statement
+            .get("predicate")
+            .ok_or_else(|| AttestationError::Verification("Missing predicate".into()))?;
+        extract_workflow_ref(predicate)?
+    } else {
+        None
+    };
 
     Ok(SlsaProvenance {
         predicate_type: predicate_type.to_string(),
