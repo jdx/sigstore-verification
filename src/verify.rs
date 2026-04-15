@@ -263,7 +263,9 @@ pub fn verify_certificate(cert_pem: &str) -> Result<CertificateInfo> {
                                         .to_string(),
                                 );
                             }
-                        } else if uri_str.starts_with("https://dotcom.releases.github.com/") {
+                        } else if uri_str == "https://dotcom.releases.github.com"
+                            || uri_str.starts_with("https://dotcom.releases.github.com/")
+                        {
                             repository = Some("dotcom.releases.github.com".to_string());
                         }
                     }
@@ -1014,6 +1016,17 @@ mod tests {
     #[test]
     fn accepts_dotcom_releases_identity() {
         let info = cert_info(None, Some("dotcom.releases.github.com"));
+        assert!(has_github_certificate_identity(&info));
+    }
+
+    #[test]
+    fn extracts_dotcom_releases_identity_from_github_attestation_certificate() {
+        let cert = "MIICKzCCAbCgAwIBAgIUdkRBqOh332mFwwbiaqkdO+NCHGowCgYIKoZIzj0EAwMwODEVMBMGA1UEChMMR2l0SHViLCBJbmMuMR8wHQYDVQQDExZGdWxjaW8gSW50ZXJtZWRpYXRlIGwxMB4XDTI1MTExMzAwMDAwMFoXDTI2MTExMzAwMDAwMFowKjEVMBMGA1UEChMMR2l0SHViLCBJbmMuMREwDwYDVQQDEwhBdHRlc3RlcjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABGR+ZMdEcHEuf1YbMBlhXTtqPmyCqQAIDyQk+TVHPywC1ZNxk5LQlRb8Vol/XZA1utIrSNdt8lkoi3RdrOhOWlOjgaUwgaIwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQMMAoGCCsGAQUFBwMDMAwGA1UdEwEB/wQCMAAwHQYDVR0OBBYEFJYm8uweBLpLZHSfo3kCjGBsvV8gMB8GA1UdIwQYMBaAFMDhuFKkS08+3no4EQbPSY6hRZszMC0GA1UdEQQmMCSGImh0dHBzOi8vZG90Y29tLnJlbGVhc2VzLmdpdGh1Yi5jb20wCgYIKoZIzj0EAwMDaQAwZgIxAN2T1WebCAcTXlyWDN4a+crAVMmFTR+zCiaknrR2MRG13xaDH28D6/ddwSCOsS3s/AIxAOVCzN/I7KBuRkVSlMsJRZxK1ZKkhxmhF2TSjI0Z2qY8I1zsXt5d0ZVT13WGAY5A7A==";
+        let info = super::verify_certificate(cert).unwrap();
+        assert_eq!(
+            info.repository.as_deref(),
+            Some("dotcom.releases.github.com")
+        );
         assert!(has_github_certificate_identity(&info));
     }
 
