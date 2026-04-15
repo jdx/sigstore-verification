@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/jdx/sigstore-verification/compare/v0.2.2...v0.2.3) - 2026-04-15
+
+### Fixed
+
+- accept non-SLSA GitHub attestations (e.g. SPDX SBOM) ([#40](https://github.com/jdx/sigstore-verification/pull/40))
+- *(deps)* update rust crate sha2 to 0.11 ([#38](https://github.com/jdx/sigstore-verification/pull/38))
+
+### Other
+
+- *(deps)* update obi1kenobi/cargo-semver-checks-action digest to 6b69fcf ([#37](https://github.com/jdx/sigstore-verification/pull/37))
+
 ## [0.2.2](https://github.com/jdx/sigstore-verification/compare/v0.2.1...v0.2.2) - 2026-04-04
 
 ### Added
