@@ -136,11 +136,61 @@ pub async fn verify_github_attestation(
     token: Option<&str>,
     signer_workflow: Option<&str>,
 ) -> Result<bool> {
+    verify_github_attestation_inner(artifact_path, owner, repo, token, signer_workflow, None).await
+}
+
+/// Verify a GitHub artifact attestation against a custom GitHub API base URL
+/// (e.g. a GitHub Enterprise Server instance such as
+/// `https://github.enterprise.com/api/v3`).
+///
+/// # Arguments
+/// * `artifact_path` - Path to the artifact file to verify
+/// * `owner` - GitHub organization or user that owns the repository
+/// * `repo` - Repository name (without owner)
+/// * `token` - Optional GitHub token for API authentication
+/// * `signer_workflow` - Optional workflow path to verify against
+/// * `base_url` - Base URL of the GitHub API (e.g.
+///   `https://github.enterprise.com/api/v3`). The auth token is only sent to
+///   this host — bundle URLs pointing elsewhere are fetched unauthenticated.
+pub async fn verify_github_attestation_with_base_url(
+    artifact_path: &Path,
+    owner: &str,
+    repo: &str,
+    token: Option<&str>,
+    signer_workflow: Option<&str>,
+    base_url: &str,
+) -> Result<bool> {
+    verify_github_attestation_inner(
+        artifact_path,
+        owner,
+        repo,
+        token,
+        signer_workflow,
+        Some(base_url),
+    )
+    .await
+}
+
+async fn verify_github_attestation_inner(
+    artifact_path: &Path,
+    owner: &str,
+    repo: &str,
+    token: Option<&str>,
+    signer_workflow: Option<&str>,
+    base_url: Option<&str>,
+) -> Result<bool> {
     // Calculate artifact digest
     let digest = calculate_file_digest(artifact_path)?;
 
     // Create API client
-    let client = AttestationClient::new(token)?;
+    let mut client_builder = AttestationClient::builder();
+    if let Some(token) = token {
+        client_builder = client_builder.github_token(token);
+    }
+    if let Some(base_url) = base_url {
+        client_builder = client_builder.base_url(base_url);
+    }
+    let client = client_builder.build()?;
 
     // Fetch attestations from GitHub. Don't filter by predicate type — some
     // projects publish non-SLSA attestations (e.g. SPDX SBOM), and filtering
