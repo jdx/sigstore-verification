@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6](https://github.com/jdx/sigstore-verification/compare/v0.2.5...v0.2.6) - 2026-04-19
+
+### Added
+
+- support custom GitHub API base URL ([#45](https://github.com/jdx/sigstore-verification/pull/45))
+
 ### Added
 
 - support custom GitHub API base URL for `GitHubSource` and `verify_github_attestation`, enabling verification against GitHub Enterprise Server instances
