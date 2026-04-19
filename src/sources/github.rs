@@ -118,6 +118,16 @@ impl GitHubSourceBuilder {
 
 #[async_trait]
 impl AttestationSource for GitHubSource {
+    /// Fetch attestations for an artifact from the configured GitHub API.
+    ///
+    /// Note: this filters the GitHub API response to SLSA provenance v1
+    /// (`https://slsa.dev/provenance/v1`) because `GitHubSource` is intended
+    /// for SLSA verification via the generic `verify_artifact` + `SlsaVerifier`
+    /// flow. Callers who need the unfiltered attestation set (e.g. non-SLSA
+    /// bundles such as SPDX SBOMs) should use
+    /// [`crate::verify_github_attestation`] /
+    /// [`crate::verify_github_attestation_with_base_url`], which send no
+    /// predicate filter, or drive [`AttestationClient`] directly.
     async fn fetch_attestations(&self, artifact: &ArtifactRef) -> Result<Vec<Attestation>> {
         let params = FetchParams {
             owner: self.owner.clone(),

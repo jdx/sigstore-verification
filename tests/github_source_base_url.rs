@@ -37,6 +37,7 @@ async fn test_github_source_builder_routes_to_custom_host() {
         .mock("GET", "/repos/owner/repo/attestations/sha256:abc123")
         .match_query(mockito::Matcher::Any)
         .match_header("authorization", "Bearer ghes-token")
+        .match_header("x-github-api-version", "2022-11-28")
         .with_status(200)
         .with_body(r#"{"attestations":[]}"#)
         .create_async()
