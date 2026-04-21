@@ -405,7 +405,12 @@ async fn verify_with_sigstore_client(
 
     // Verify the signature
     if let Some(sig) = envelope.signatures.first() {
-        verify_dsse_signature(cert_bytes, &sig.sig, &envelope.payload)?;
+        verify_dsse_signature(
+            cert_bytes,
+            &sig.sig,
+            &envelope.payload,
+            &envelope.payload_type,
+        )?;
     }
 
     // Verify Rekor transparency log inclusion if available
@@ -465,7 +470,12 @@ fn is_fulcio_issuer(issuer: &str) -> bool {
 }
 
 /// Verify the DSSE signature
-fn verify_dsse_signature(cert_bytes: &[u8], signature: &str, payload: &str) -> Result<()> {
+fn verify_dsse_signature(
+    cert_bytes: &[u8],
+    signature: &str,
+    payload: &str,
+    payload_type: &str,
+) -> Result<()> {
     // Parse the certificate to extract the public key
     let (_, cert) = X509Certificate::from_der(cert_bytes).map_err(|e| {
         AttestationError::Verification(format!("Failed to parse certificate: {}", e))
@@ -477,7 +487,7 @@ fn verify_dsse_signature(cert_bytes: &[u8], signature: &str, payload: &str) -> R
     })?;
 
     // Create the PAE (Pre-Authentication Encoding) for DSSE
-    let pae = create_dsse_pae("application/vnd.in-toto+json", payload.as_bytes());
+    let pae = create_dsse_pae(payload_type, payload.as_bytes());
 
     // Extract and verify based on the public key algorithm
     let public_key = cert.public_key();
@@ -959,7 +969,9 @@ fn has_github_certificate_identity(cert_info: &CertificateInfo) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{CertificateInfo, has_github_certificate_identity, is_fulcio_issuer};
+    use super::{
+        CertificateInfo, create_dsse_pae, has_github_certificate_identity, is_fulcio_issuer,
+    };
 
     fn cert_info(workflow_ref: Option<&str>, repository: Option<&str>) -> CertificateInfo {
         CertificateInfo {
@@ -1031,5 +1043,11 @@ mod tests {
     fn rejects_missing_github_identity() {
         let info = cert_info(None, None);
         assert!(!has_github_certificate_identity(&info));
+    }
+
+    #[test]
+    fn creates_dsse_pae_with_supplied_payload_type() {
+        let pae = create_dsse_pae("application/spdx+json", b"hello");
+        assert_eq!(pae, b"DSSEv1 21 application/spdx+json 5 hello");
     }
 }
