@@ -397,6 +397,9 @@ async fn verify_with_sigstore_client(
         AttestationError::Verification("Could not fetch Sigstore trust root".into())
     })?;
 
+    // Temporary workaround: avoid constructing the sigstore client here until
+    // downstream consumers can pick up a sigstore release that includes the
+    // upstream Rekor-key parsing fix.
     // Verify the certificate chain against Fulcio roots
     verify_certificate_chain(cert_bytes, &trust_root)?;
 
