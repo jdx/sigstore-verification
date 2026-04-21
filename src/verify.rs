@@ -3,7 +3,6 @@ use crate::{AttestationError, Result, api::Attestation};
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use log::debug;
 use sha2::{Digest, Sha256};
-use sigstore::cosign::{ClientBuilder, CosignCapabilities};
 use sigstore::trust::TrustRoot;
 use sigstore::trust::sigstore::SigstoreTrustRoot;
 use std::path::Path;
@@ -398,25 +397,18 @@ async fn verify_with_sigstore_client(
         AttestationError::Verification("Could not fetch Sigstore trust root".into())
     })?;
 
-    // Build the Sigstore client
-    let mut client = ClientBuilder::default()
-        .with_trust_repository(&*trust_root)
-        .map_err(|e| AttestationError::Verification(format!("Failed to build client: {}", e)))?
-        .build()
-        .map_err(|e| AttestationError::Verification(format!("Failed to build client: {}", e)))?;
-
     // Verify the certificate chain against Fulcio roots
-    verify_certificate_chain(&mut client, cert_bytes, &trust_root)?;
+    verify_certificate_chain(cert_bytes, &trust_root)?;
 
     // Verify the signature
     if let Some(sig) = envelope.signatures.first() {
-        verify_dsse_signature(&mut client, cert_bytes, &sig.sig, &envelope.payload)?;
+        verify_dsse_signature(cert_bytes, &sig.sig, &envelope.payload)?;
     }
 
     // Verify Rekor transparency log inclusion if available
     if let Some(tlog_entries) = &bundle.tlog_entries {
         for tlog_entry in tlog_entries {
-            verify_rekor_inclusion(&mut client, tlog_entry, &trust_root)?;
+            verify_rekor_inclusion(tlog_entry, &trust_root)?;
         }
     }
 
@@ -424,11 +416,7 @@ async fn verify_with_sigstore_client(
 }
 
 /// Verify the certificate chain against Fulcio roots
-fn verify_certificate_chain<T: CosignCapabilities>(
-    _client: &mut T,
-    cert_bytes: &[u8],
-    trust_root: &SigstoreTrustRoot,
-) -> Result<()> {
+fn verify_certificate_chain(cert_bytes: &[u8], trust_root: &SigstoreTrustRoot) -> Result<()> {
     // Parse the certificate
     use x509_parser::prelude::*;
     let (_, cert) = X509Certificate::from_der(cert_bytes).map_err(|e| {
@@ -474,12 +462,7 @@ fn is_fulcio_issuer(issuer: &str) -> bool {
 }
 
 /// Verify the DSSE signature
-fn verify_dsse_signature<T: CosignCapabilities>(
-    _client: &mut T,
-    cert_bytes: &[u8],
-    signature: &str,
-    payload: &str,
-) -> Result<()> {
+fn verify_dsse_signature(cert_bytes: &[u8], signature: &str, payload: &str) -> Result<()> {
     // Parse the certificate to extract the public key
     let (_, cert) = X509Certificate::from_der(cert_bytes).map_err(|e| {
         AttestationError::Verification(format!("Failed to parse certificate: {}", e))
@@ -689,8 +672,7 @@ fn create_dsse_pae(payload_type: &str, payload: &[u8]) -> Vec<u8> {
 }
 
 /// Verify inclusion in Rekor transparency log
-fn verify_rekor_inclusion<T: CosignCapabilities>(
-    _client: &mut T,
+fn verify_rekor_inclusion(
     tlog_entry: &serde_json::Value,
     trust_root: &SigstoreTrustRoot,
 ) -> Result<()> {
