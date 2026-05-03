@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8](https://github.com/jdx/sigstore-verification/compare/v0.2.7...v0.2.8) - 2026-05-03
+
+### Other
+
+- set dev profile debug to 1 ([#49](https://github.com/jdx/sigstore-verification/pull/49))
+
 ## [0.2.7](https://github.com/jdx/sigstore-verification/compare/v0.2.6...v0.2.7) - 2026-04-22
 
 ### Other
