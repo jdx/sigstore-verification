@@ -54,3 +54,6 @@ rustls-native-roots = [
     "reqwest/rustls",
     "sigstore/rustls-tls-native-roots",
 ]
+
+[profile.dev]
+debug = 1
