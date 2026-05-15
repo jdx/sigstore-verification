@@ -27,7 +27,7 @@ x509-parser = "0.18"
 p256 = { version = "0.13", features = ["ecdsa", "pem"] }
 p384 = { version = "0.13", features = ["ecdsa"] }
 ed25519-dalek = { version = "2", features = ["pem"] }
-signature = "2"
+signature = "3"
 
 # Sigstore dependencies for verification
 sigstore = { version = "0.13", default-features = false, features = ["bundle", "sigstore-trust-root", "cosign", "rekor", "fulcio", "ring"] }
