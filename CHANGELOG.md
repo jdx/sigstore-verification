@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9](https://github.com/jdx/sigstore-verification/compare/v0.2.8...v0.2.9) - 2026-05-15
+
+### Fixed
+
+- *(deps)* update rust crate signature to v3 ([#52](https://github.com/jdx/sigstore-verification/pull/52))
+
+### Other
+
+- *(deps)* update release-plz/action digest to 064f4d1 ([#51](https://github.com/jdx/sigstore-verification/pull/51))
+
 ## [0.2.8](https://github.com/jdx/sigstore-verification/compare/v0.2.7...v0.2.8) - 2026-05-03
 
 ### Other
